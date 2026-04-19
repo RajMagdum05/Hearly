@@ -1,0 +1,12 @@
+{
+  "name": "hearly",
+  "version": "1.0.0",
+  "description": "Background Voice Filter for Meetings",
+  "main": "index.js",
+  "scripts": {
+    "dev": "powershell -Command \"Start-Process chrome.exe -ArgumentList '--load-extension=r:\\Projects\\hearly-mvp\\hearly', 'https://meet.google.com'\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hearly MVP - Test Page</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            border: 1px solid #333;
+            padding: 40px;
+            border-radius: 20px;
+            background: #252525;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        h1 { color: #00e676; margin-bottom: 10px; }
+        p { color: #888; margin-bottom: 30px; }
+        .btn {
+            background: #00e676;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover { background: #33eb91; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎧 Hearly Pro Demo</h1>
+        <p>This is a simulated meeting environment.</p>
+        <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
+            <button class="btn" style="background: #2196f3; color: white;" onclick="startMeeting()">💻 Join Meeting</button>
+            <button class="btn" onclick="simulateVoice()">🗣️ Simulate Other Voice</button>
+        </div>
+        <div id="meeting-status" style="font-size: 13px; color: #888;">Meeting not started.</div>
+    </div>
+
+    <script>
+        async function startMeeting() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                document.getElementById('meeting-status').innerHTML = "🟢 Meeting in progress... <br>Hearly is now monitoring your audio.";
+                document.getElementById('meeting-status').style.color = "#00e676";
+                console.log("Stream started:", stream);
+            } catch (err) {
+                alert("Please allow mic access to test Hearly.");
+            }
+        }
+
+        function simulateVoice() {
+            window.postMessage({
+                hearlyMsg: true,
+                type: "HEARLY_TRANSCRIPT_RESULT",
+                text: "Someone in the background is talking! Hearly caught them."
+            }, "*");
+        }
+    </script>
+</body>
+</html>
