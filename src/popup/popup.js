@@ -79,15 +79,44 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Trigger enrollment in the active tab
     try {
       const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (currentTab?.id && isSupportedMeetingUrl(currentTab.url)) {
-        await chrome.tabs.sendMessage(currentTab.id, { type: "HEARLY_START_ENROLLMENT" });
-        showNotification("🎙️ Setup started on the page! Please switch to your meeting tab.", "success");
-      } else {
-        showNotification("❌ Open a supported meeting tab first.", "error");
+      
+      if (!currentTab?.id) {
+        showNotification("❌ No active tab found.", "error");
+        return;
       }
+
+      // Check for restricted URLs (chrome://, edge://, about:, etc.)
+      const restrictedSchemes = ["chrome:", "edge:", "about:", "chrome-extension:", "moz-extension:"];
+      if (currentTab.url && restrictedSchemes.some(scheme => currentTab.url.startsWith(scheme))) {
+        showNotification("❌ Setup cannot run on browser system pages. Please open a meeting tab first.", "error");
+        return;
+      }
+
+      if (!isSupportedMeetingUrl(currentTab.url)) {
+        showNotification("❌ Please open Google Meet, Zoom, or Teams to start setup.", "error");
+        return;
+      }
+
+      await chrome.scripting.executeScript({
+        target: { tabId: currentTab.id },
+        func: () => {
+           if (window.__hearlyEnroll) {
+               window.__hearlyEnroll();
+           } else {
+               alert("Hearly overlay not found on this page. Please refresh the meeting tab or ensure you are on a supported meeting site.");
+           }
+        },
+      });
+      
+      showNotification("🎙️ Setup started on the page! Please switch to your meeting tab.", "success");
+      // Keep popup open so they can read the message
     } catch (err) {
       console.error("[Hearly Popup] Enroll error:", err);
-      showNotification("❌ Could not start training. Refresh the meeting tab and try again.", "error");
+      if (err.message && err.message.includes("Cannot access")) {
+        showNotification("❌ Hearly cannot access this page. Please try on Google Meet or Zoom.", "error");
+      } else {
+        showNotification("❌ Could not start training. Check permissions or refresh the tab.", "error");
+      }
     } finally {
       enrollBtn.disabled = false;
     }
