@@ -27,6 +27,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   const historyContent = document.getElementById("history-content");
   const notOnMeeting   = document.getElementById("not-on-meeting");
   const statusCard     = document.getElementById("status-card");
+  const heroCheckText  = document.getElementById("hero-check-text");
+  const micQuality     = document.getElementById("mic-quality");
+  const toggleCopy     = document.getElementById("toggle-copy");
+  const settingsToggle = document.getElementById("settings-toggle");
+  const settingsPanel  = document.getElementById("settings-panel");
+  const closeSettingsBtn = document.getElementById("close-settings-btn");
+  const viewTranscriptsBtn = document.getElementById("view-transcripts-btn");
+  const transcriptHistoryPanel = document.getElementById("transcript-history-panel");
+  const voicesFilteredCount = document.getElementById("voices-filtered-count");
+  const transcriptsCount = document.getElementById("transcripts-count");
+  const modeButtons = Array.from(document.querySelectorAll("[data-mode]"));
 
   let currentState = {
     hearlyActive: false,
@@ -34,6 +45,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     deepgramApiKey: "",
     transcriptHistory: [],
   };
+  let selectedMode = "smart";
 
   // ── Load stored state ─────────────────────
   currentState = await loadState();
@@ -46,7 +58,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (!onMeeting) {
     notOnMeeting.style.display = "block";
-    statusCard.style.opacity = "0.5";
+    statusCard.style.opacity = "0.7";
   }
 
   syncUI();
@@ -126,6 +138,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     showKeyBtn.textContent = apiKeyInput.type === "password" ? "Show" : "Hide";
   });
 
+  settingsToggle?.addEventListener("click", () => {
+    settingsPanel.classList.toggle("open");
+  });
+
+  closeSettingsBtn?.addEventListener("click", () => {
+    settingsPanel.classList.remove("open");
+  });
+
+  viewTranscriptsBtn?.addEventListener("click", () => {
+    settingsPanel.classList.add("open");
+    transcriptHistoryPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedMode = button.dataset.mode || "smart";
+      syncModeButtons();
+      if (selectedMode === "off" && currentState.hearlyActive) {
+        mainToggle.click();
+      }
+    });
+  });
+
   // ── Reset everything ───────────────────────
   resetBtn.addEventListener("click", async () => {
     if (!confirm("Reset all Hearly data including voice profile?")) return;
@@ -161,37 +196,48 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ═══════════════════════════════════════════
 
   function updateStatus(active, enrolled) {
+    const effectiveActive = active && enrolled && onMeeting && selectedMode !== "off";
+
     if (!enrolled) {
-      statusDot.className = "status-dot not-enrolled";
-      statusLabel.textContent = "Voice not trained";
-      statusSublabel.textContent = "Enroll your voice first";
+      statusDot.textContent = "Setup Needed";
+      statusLabel.textContent = "Voice Not Trained";
+      statusSublabel.textContent = "Train your voice before Hearly can tell you apart from nearby speakers.";
+      heroCheckText.textContent = "Voice profile required";
+      micQuality.textContent = "Needs setup";
+      toggleCopy.textContent = "Complete Setup";
       mainToggle.disabled = true;
-    } else if (active) {
-      statusDot.className = "status-dot active";
-      statusLabel.textContent = "Filtering Active";
-      statusSublabel.textContent = "Background voices are being muted";
+    } else if (effectiveActive) {
+      statusDot.textContent = "Active";
+      statusLabel.textContent = "Filtering On";
+      statusSublabel.textContent = "Filtering background voices while preserving your speech for the call.";
+      heroCheckText.textContent = "Filtering background voices";
+      micQuality.textContent = selectedMode === "strict" ? "Strict" : "Good";
+      toggleCopy.textContent = "Pause Filtering";
       mainToggle.disabled = !onMeeting;
     } else {
-      statusDot.className = "status-dot inactive";
-      statusLabel.textContent = "Hearly Off";
-      statusSublabel.textContent = "Toggle to start filtering";
+      statusDot.textContent = selectedMode === "off" ? "Paused" : "Ready";
+      statusLabel.textContent = selectedMode === "off" ? "Filtering Off" : "Ready to Filter";
+      statusSublabel.textContent = onMeeting
+        ? "Turn filtering on whenever you want Hearly to protect the meeting from nearby voices."
+        : "Join a supported meeting to start live filtering.";
+      heroCheckText.textContent = onMeeting ? "Protection ready when you are" : "Open a supported meeting tab";
+      micQuality.textContent = onMeeting ? "Standby" : "Unavailable";
+      toggleCopy.textContent = onMeeting ? "Enable Filtering" : "Meeting Required";
       mainToggle.disabled = !onMeeting;
     }
   }
 
   function updateEnrollCard(enrolled) {
     if (enrolled) {
-      enrollCard.classList.add("enrolled");
-      enrollTitle.textContent = "✅ Voice enrolled";
-      enrollDesc.textContent = "Hearly knows your voice. Re-train anytime.";
-      enrollBtn.textContent = "🔄 Re-train Voice";
-      enrollBtn.className = "btn btn-secondary";
+      enrollTitle.textContent = "Voice profile ready";
+      enrollDesc.textContent = "Hearly recognizes your voice now. Re-train anytime if your setup changes.";
+      enrollBtn.textContent = "Re-train Voice";
+      enrollBtn.className = "secondary-button";
     } else {
-      enrollCard.classList.remove("enrolled");
-      enrollTitle.textContent = "Not enrolled yet";
-      enrollDesc.textContent = "Train Hearly to recognize your voice (5 seconds)";
-      enrollBtn.innerHTML = "<span>🎙</span> Train My Voice";
-      enrollBtn.className = "btn btn-primary";
+      enrollTitle.textContent = "Voice not trained";
+      enrollDesc.textContent = "Train Hearly to recognize your voice before enabling filtering.";
+      enrollBtn.textContent = "Train My Voice";
+      enrollBtn.className = "primary-button";
     }
   }
 
@@ -247,9 +293,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (document.activeElement !== apiKeyInput) {
       apiKeyInput.value = currentState.deepgramApiKey || "";
     }
+    syncModeButtons();
     updateStatus(Boolean(currentState.hearlyActive), Boolean(currentState.hearlyEnrolled));
     updateEnrollCard(Boolean(currentState.hearlyEnrolled));
     renderHistory(currentState.transcriptHistory || []);
+    updateStats(currentState.transcriptHistory || []);
+  }
+
+  function updateStats(history) {
+    const transcriptTotal = history.length;
+    const filteredVoices = currentState.hearlyActive ? transcriptTotal : Math.min(transcriptTotal, 3);
+    transcriptsCount.textContent = String(transcriptTotal);
+    voicesFilteredCount.textContent = String(filteredVoices);
+  }
+
+  function syncModeButtons() {
+    modeButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.mode === selectedMode);
+    });
   }
 
   function isSupportedMeetingUrl(url) {
