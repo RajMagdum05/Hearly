@@ -8,14 +8,17 @@
     "storage",
     "activeTab",
     "scripting",
-    "tabs"
+    "tabs",
+    "tabCapture",
+    "offscreen"
   ],
 
   "host_permissions": [
     "https://meet.google.com/*",
     "https://*.zoom.us/*",
     "https://teams.microsoft.com/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "https://api.deepgram.com/*"
   ],
 
   "background": {
@@ -30,7 +33,7 @@
         "https://*.zoom.us/*",
         "https://teams.microsoft.com/*",
         "http://localhost/*",
-        "<all_urls>"
+        "file:///*"
       ],
       "js": ["src/content/injector.js"],
       "run_at": "document_start"
@@ -58,7 +61,7 @@
         "https://*.zoom.us/*",
         "https://teams.microsoft.com/*",
         "http://localhost/*",
-        "<all_urls>"
+        "file:///*"
       ]
     }
   ],

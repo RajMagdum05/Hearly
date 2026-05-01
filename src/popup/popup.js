@@ -3,6 +3,12 @@
 // ─────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const SUPPORTED_HOSTS = [
+    "meet.google.com",
+    "zoom.us",
+    "teams.microsoft.com",
+    "localhost",
+  ];
 
   // ── Elements ──────────────────────────────
   const mainToggle     = document.getElementById("main-toggle");
@@ -13,8 +19,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const enrollCard     = document.getElementById("enroll-card");
   const enrollTitle    = document.getElementById("enroll-title");
   const enrollDesc     = document.getElementById("enroll-desc");
-  const recIndicator   = document.getElementById("rec-indicator");
-  const recTimer       = document.getElementById("rec-timer");
   const apiKeyInput    = document.getElementById("api-key-input");
   const saveKeyBtn     = document.getElementById("save-key-btn");
   const showKeyBtn     = document.getElementById("show-key-btn");
@@ -24,44 +28,35 @@ document.addEventListener("DOMContentLoaded", async () => {
   const notOnMeeting   = document.getElementById("not-on-meeting");
   const statusCard     = document.getElementById("status-card");
 
+  let currentState = {
+    hearlyActive: false,
+    hearlyEnrolled: false,
+    deepgramApiKey: "",
+    transcriptHistory: [],
+  };
+
   // ── Load stored state ─────────────────────
-  const data = await getStorage([
-    "hearlyActive",
-    "hearlyEnrolled",
-    "deepgramApiKey",
-    "transcriptHistory",
-  ]);
-
-  const isActive   = data.hearlyActive   || false;
-  const isEnrolled = data.hearlyEnrolled || false;
-  const apiKey     = data.deepgramApiKey || "";
-  const history    = data.transcriptHistory || [];
-
-  mainToggle.checked = isActive;
-  apiKeyInput.value  = apiKey;
+  currentState = await loadState();
+  mainToggle.checked = currentState.hearlyActive;
+  apiKeyInput.value  = currentState.deepgramApiKey;
 
   // ── Check if on meeting page ───────────────
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const onMeeting = tab?.url &&
-    (tab.url.includes("meet.google.com") ||
-     tab.url.includes("zoom.us") ||
-     tab.url.includes("teams.microsoft.com"));
+  const onMeeting = isSupportedMeetingUrl(tab?.url);
 
   if (!onMeeting) {
     notOnMeeting.style.display = "block";
-    mainToggle.disabled = true;
     statusCard.style.opacity = "0.5";
   }
 
-  updateStatus(isActive, isEnrolled);
-  updateEnrollCard(isEnrolled);
-  renderHistory(history);
+  syncUI();
 
   // ── Toggle Hearly on/off ───────────────────
   mainToggle.addEventListener("change", async () => {
     const value = mainToggle.checked;
     await chrome.runtime.sendMessage({ type: "SET_ACTIVE", value });
-    updateStatus(value, isEnrolled);
+    currentState.hearlyActive = value;
+    syncUI();
     showNotification(
       value ? "🟢 Hearly is now filtering your mic" : "⚫ Hearly paused",
       value ? "success" : "info"
@@ -72,26 +67,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Trigger enrollment in the active tab
     try {
       const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (currentTab?.id) {
-        await chrome.scripting.executeScript({
-          target: { tabId: currentTab.id },
-          func: () => {
-             if (window.__hearlyEnroll) {
-                 window.__hearlyEnroll();
-             } else {
-                 alert("Hearly overlay not found on this page. Please refresh the meeting tab.");
-             }
-          },
-        });
-        
+      if (currentTab?.id && isSupportedMeetingUrl(currentTab.url)) {
+        await chrome.tabs.sendMessage(currentTab.id, { type: "HEARLY_START_ENROLLMENT" });
         showNotification("🎙️ Setup started on the page! Please switch to your meeting tab.", "success");
-        // Keep popup open so they can read the message
       } else {
-        showNotification("❌ No active tab found.", "error");
+        showNotification("❌ Open a supported meeting tab first.", "error");
       }
     } catch (err) {
       console.error("[Hearly Popup] Enroll error:", err);
-      showNotification("❌ Could not start training. Check permissions.", "error");
+      showNotification("❌ Could not start training. Refresh the meeting tab and try again.", "error");
     } finally {
       enrollBtn.disabled = false;
     }
@@ -129,11 +113,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     setTimeout(() => window.location.reload(), 1500);
   });
 
-  // ── Refresh history every 2 seconds ───────
-  setInterval(async () => {
-    const d = await getStorage(["transcriptHistory"]);
-    renderHistory(d.transcriptHistory || []);
-  }, 2000);
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
+
+    for (const [key, change] of Object.entries(changes)) {
+      currentState[key] = change.newValue;
+    }
+
+    syncUI();
+  });
+
+  window.addEventListener("focus", async () => {
+    currentState = await loadState();
+    syncUI();
+  });
 
   // ═══════════════════════════════════════════
   //  HELPER FUNCTIONS
@@ -149,12 +142,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       statusDot.className = "status-dot active";
       statusLabel.textContent = "Filtering Active";
       statusSublabel.textContent = "Background voices are being muted";
-      mainToggle.disabled = false;
+      mainToggle.disabled = !onMeeting;
     } else {
       statusDot.className = "status-dot inactive";
       statusLabel.textContent = "Hearly Off";
       statusSublabel.textContent = "Toggle to start filtering";
-      mainToggle.disabled = false;
+      mainToggle.disabled = !onMeeting;
     }
   }
 
@@ -203,6 +196,45 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function getStorage(keys) {
     return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
+  }
+
+  async function loadState() {
+    const data = await getStorage([
+      "hearlyActive",
+      "hearlyEnrolled",
+      "deepgramApiKey",
+      "transcriptHistory",
+    ]);
+
+    return {
+      hearlyActive: data.hearlyActive || false,
+      hearlyEnrolled: data.hearlyEnrolled || false,
+      deepgramApiKey: data.deepgramApiKey || "",
+      transcriptHistory: data.transcriptHistory || [],
+    };
+  }
+
+  function syncUI() {
+    mainToggle.checked = Boolean(currentState.hearlyActive);
+    if (document.activeElement !== apiKeyInput) {
+      apiKeyInput.value = currentState.deepgramApiKey || "";
+    }
+    updateStatus(Boolean(currentState.hearlyActive), Boolean(currentState.hearlyEnrolled));
+    updateEnrollCard(Boolean(currentState.hearlyEnrolled));
+    renderHistory(currentState.transcriptHistory || []);
+  }
+
+  function isSupportedMeetingUrl(url) {
+    if (!url) return false;
+
+    try {
+      const parsed = new URL(url);
+      return SUPPORTED_HOSTS.some((host) =>
+        parsed.hostname === host || parsed.hostname.endsWith(`.${host}`)
+      );
+    } catch {
+      return false;
+    }
   }
 
   function escapeHtml(text) {

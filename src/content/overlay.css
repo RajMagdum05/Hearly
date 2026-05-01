@@ -19,9 +19,35 @@
 }
 
 /* Enrollment UI */
+#hearly-enroll-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 12, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#hearly-enroll-overlay.hearly-visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
 .hearly-enroll-container {
-    padding: 20px;
+    width: min(460px, calc(100vw - 32px));
+    padding: 24px;
     text-align: center;
+    background: rgba(10, 10, 15, 0.94);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.45);
+    color: #fff;
 }
 
 .hearly-waveform-container {
@@ -155,7 +181,7 @@
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: all;
-  max-height: 300px;
+  max-height: 400px;
 }
 
 #hearly-transcript-header {
@@ -233,6 +259,53 @@
   color: rgba(255,255,255,0.92);
   line-height: 1.5;
   letter-spacing: -0.01em;
+}
+
+.hearly-interim {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.hearly-background-alert {
+  padding: 8px;
+  background: rgba(255, 179, 0, 0.1);
+  border-left: 3px solid #ffb300;
+  border-radius: 4px;
+}
+
+/* ── Controls ──────────────────────────────── */
+#hearly-controls {
+  pointer-events: all;
+  margin-top: 5px;
+}
+
+#hearly-start-meeting-btn {
+  background: #2962ff;
+  color: white;
+  border: none;
+  border-radius: 100px;
+  padding: 8px 20px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(41, 98, 255, 0.3);
+}
+
+#hearly-start-meeting-btn:hover {
+  background: #0039cb;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(41, 98, 255, 0.4);
+}
+
+#hearly-start-meeting-btn.hearly-active {
+  background: #d50000;
+  box-shadow: 0 4px 12px rgba(213, 0, 0, 0.3);
+}
+
+#hearly-start-meeting-btn.hearly-active:hover {
+  background: #9b0000;
 }
 
 /* ── Toast ──────────────────────────────────── */

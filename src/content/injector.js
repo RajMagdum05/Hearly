@@ -62,7 +62,11 @@
         );
 
         // Save to history
-        if (result.text) {
+        if (
+          result.text &&
+          !result.text.startsWith("⚠️") &&
+          !result.text.startsWith("❌")
+        ) {
           chrome.runtime.sendMessage({
             type: "SAVE_TRANSCRIPT",
             text: result.text,
@@ -78,6 +82,16 @@
         });
         break;
       }
+
+      case "HEARLY_START_MEETING": {
+        chrome.runtime.sendMessage({ type: "START_MEETING_TRANSCRIPTION" });
+        break;
+      }
+
+      case "HEARLY_STOP_MEETING": {
+        chrome.runtime.sendMessage({ type: "STOP_MEETING_TRANSCRIPTION" });
+        break;
+      }
     }
   });
 
@@ -86,6 +100,27 @@
     if (message.type === "HEARLY_TOGGLE") {
       window.postMessage(
         { hearlyMsg: true, type: "HEARLY_TOGGLE", value: message.value },
+        "*"
+      );
+    } else if (message.type === "HEARLY_START_ENROLLMENT") {
+      window.postMessage(
+        { hearlyMsg: true, type: "HEARLY_ENROLL" },
+        "*"
+      );
+    } else if (message.type === "HEARLY_PROFILE_UPDATED") {
+      window.postMessage(
+        { hearlyMsg: true, type: "HEARLY_PROFILE_UPDATED", profile: message.profile },
+        "*"
+      );
+    } else if (message.type === "HEARLY_MEETING_TRANSCRIPT") {
+      window.postMessage(
+        { 
+          hearlyMsg: true, 
+          type: "HEARLY_MEETING_TRANSCRIPT", 
+          text: message.text,
+          isFinal: message.isFinal,
+          speaker: message.speaker
+        },
         "*"
       );
     }
