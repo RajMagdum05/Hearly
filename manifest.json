@@ -12,6 +12,9 @@
     "tabCapture",
     "offscreen"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://huggingface.co https://*.huggingface.co https://cdn.jsdelivr.net"
+  },
 
   "host_permissions": [
     "https://meet.google.com/*",

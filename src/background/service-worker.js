@@ -100,16 +100,12 @@ async function startMeetingTranscription(tabId) {
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
   const { deepgramApiKey } = await chrome.storage.local.get("deepgramApiKey");
 
-  if (!deepgramApiKey) {
-    throw new Error("Deepgram API Key not configured.");
-  }
-
   await ensureOffscreenDocument();
 
   chrome.runtime.sendMessage({
     type: "START_TAB_RECORDING",
     target: "offscreen",
-    data: { streamId, apiKey: deepgramApiKey }
+    data: { streamId, apiKey: deepgramApiKey || "" } // API Key is now optional for local
   });
 }
 
