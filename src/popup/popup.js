@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const modeBadge = document.createElement("div");
   modeBadge.style.cssText = "font-size: 10px; opacity: 0.6; margin-top: 5px; text-align: center;";
-  modeBadge.textContent = currentState.deepgramApiKey ? "🚀 Cloud Mode Active" : "🏠 Local Privacy Mode Active";
+  modeBadge.textContent = currentState.deepgramApiKey ? "🚀 Cloud Mode Active" : "";
   statusCard.appendChild(modeBadge);
 
   // ── Toggle Hearly on/off ───────────────────
