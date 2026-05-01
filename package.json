@@ -4,8 +4,9 @@
   "description": "Background Voice Filter for Meetings",
   "main": "index.js",
   "scripts": {
-    "dev": "powershell -Command \"Start-Process chrome.exe -ArgumentList '--load-extension=r:\\Projects\\hearly-mvp\\hearly', 'https://meet.google.com'\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "open -a \"Google Chrome\" --args --load-extension=\"$PWD\"",
+    "demo": "open -a \"Google Chrome\" \"file://$PWD/test_demo.html\"",
+    "test": "node --check src/background/service-worker.js && node --check src/content/injector.js && node --check src/content/overlay.js && node --check src/popup/popup.js && node --check src/worklet/voice-processor.js"
   },
   "author": "",
   "license": "ISC"

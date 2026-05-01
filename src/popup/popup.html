@@ -5,541 +5,997 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hearly</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; }
 
     :root {
-      --bg: #0a0a0f;
-      --surface: #13131a;
-      --border: rgba(255,255,255,0.08);
-      --text-primary: rgba(255,255,255,0.92);
-      --text-secondary: rgba(255,255,255,0.45);
-      --accent: #00e676;
-      --accent-dim: rgba(0, 230, 118, 0.12);
-      --danger: #ff5252;
-      --warning: #ffb300;
+      --cream: #fff7ea;
+      --surface: rgba(255, 251, 243, 0.96);
+      --surface-strong: #fff3d9;
+      --surface-accent: #ffe4b5;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: rgba(120, 86, 38, 0.14);
+      --line-strong: rgba(120, 86, 38, 0.22);
+      --orange: #ff8a3d;
+      --orange-deep: #f36d21;
+      --teal: #1e938a;
+      --teal-soft: rgba(30, 147, 138, 0.12);
+      --berry: #ff5f7b;
+      --warning: #c67d10;
+      --success: #148564;
+      --shadow: 0 18px 40px rgba(143, 91, 25, 0.16);
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top right, rgba(255, 182, 99, 0.45), transparent 38%),
+        radial-gradient(circle at 0% 35%, rgba(74, 214, 198, 0.16), transparent 28%),
+        linear-gradient(180deg, #fffaf2 0%, #fff1dd 100%);
+      color: var(--text);
+      font-family: 'Manrope', sans-serif;
     }
 
     body {
-      width: 320px;
-      background: var(--bg);
-      color: var(--text-primary);
-      font-family: 'DM Sans', sans-serif;
-      min-height: 400px;
+      width: 376px;
+      padding: 14px;
+    }
+
+    .app-shell {
+      position: relative;
+      overflow: hidden;
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255, 248, 236, 0.95));
+      border: 1px solid rgba(255,255,255,0.75);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .app-shell::before,
+    .app-shell::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      pointer-events: none;
+    }
+
+    .app-shell::before {
+      width: 180px;
+      height: 180px;
+      top: -70px;
+      right: -50px;
+      background: radial-gradient(circle, rgba(255, 175, 79, 0.34), rgba(255, 175, 79, 0));
+    }
+
+    .app-shell::after {
+      width: 140px;
+      height: 140px;
+      left: -54px;
+      bottom: 120px;
+      background: radial-gradient(circle, rgba(30, 147, 138, 0.16), rgba(30, 147, 138, 0));
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 46px;
+      height: 46px;
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 32% 32%, rgba(255,255,255,0.95), rgba(255,255,255,0.35) 24%, transparent 26%),
+        linear-gradient(135deg, #ffb86a 0%, #ff8a3d 46%, #ff6b6b 100%);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 10px 22px rgba(243, 109, 33, 0.26);
+      color: #fff;
+      font-size: 20px;
+    }
+
+    .brand-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .brand-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--orange-deep);
+    }
+
+    .brand-title {
+      font-family: 'Sora', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(255,255,255,0.75);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 14px;
+      padding: 18px;
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(255, 244, 222, 0.94), rgba(255, 233, 193, 0.92)),
+        linear-gradient(180deg, rgba(255,255,255,0.2), rgba(255,255,255,0));
+      border: 1px solid rgba(255,255,255,0.7);
+    }
+
+    .hero-copy h1 {
+      margin: 0 0 8px;
+      font-family: 'Sora', sans-serif;
+      font-size: 21px;
+      line-height: 1.15;
+      letter-spacing: -0.05em;
+    }
+
+    .hero-copy p {
+      margin: 0 0 14px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #5f6368;
+    }
+
+    .hero-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .hero-tag {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.8);
+      font-size: 11px;
+      font-weight: 700;
+      color: #7a5a28;
+    }
+
+    .hero-art {
+      position: relative;
+      min-height: 154px;
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at 35% 30%, rgba(255,255,255,0.75), transparent 32%),
+        linear-gradient(180deg, #ffd080 0%, #ffb15b 100%);
       overflow: hidden;
     }
 
-    /* ── Header ── */
-    .header {
-      padding: 20px 20px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    .hero-art::before {
+      content: "";
+      position: absolute;
+      inset: auto 12px 14px 12px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(163, 89, 26, 0.14);
+      filter: blur(6px);
     }
 
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 9px;
+    .pet-card {
+      position: absolute;
+      inset: 14px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.44), rgba(255,255,255,0.12));
+      border: 1px solid rgba(255,255,255,0.48);
+      display: grid;
+      place-items: center;
     }
 
-    .logo-icon {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, #00e676, #00bcd4);
-      border-radius: 9px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
+    .pet-figure {
+      position: relative;
+      width: 118px;
+      height: 118px;
     }
 
-    .logo-text {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      background: linear-gradient(135deg, #fff 40%, rgba(255,255,255,0.5));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .pet-head {
+      position: absolute;
+      left: 29px;
+      top: 26px;
+      width: 60px;
+      height: 56px;
+      border-radius: 48% 48% 45% 45%;
+      background: #fff7ea;
+      border: 3px solid #7b4a26;
+      z-index: 2;
     }
 
-    .logo-version {
-      font-size: 10px;
-      font-family: 'DM Mono', monospace;
-      color: var(--text-secondary);
+    .pet-ear {
+      position: absolute;
+      top: 10px;
+      width: 24px;
+      height: 34px;
+      border-radius: 16px 16px 6px 6px;
+      background: #7b4a26;
+      transform-origin: bottom center;
+    }
+
+    .pet-ear.left {
+      left: 26px;
+      transform: rotate(-22deg);
+    }
+
+    .pet-ear.right {
+      right: 26px;
+      transform: rotate(22deg);
+    }
+
+    .pet-face {
+      position: absolute;
+      inset: 0;
+    }
+
+    .pet-eye,
+    .pet-nose {
+      position: absolute;
+      background: #512b13;
+    }
+
+    .pet-eye {
+      top: 23px;
+      width: 7px;
+      height: 9px;
+      border-radius: 50%;
+    }
+
+    .pet-eye.left { left: 16px; }
+    .pet-eye.right { right: 16px; }
+
+    .pet-nose {
+      left: 25px;
+      top: 31px;
+      width: 10px;
+      height: 8px;
+      border-radius: 50% 50% 60% 60%;
+    }
+
+    .pet-mouth {
+      position: absolute;
+      left: 21px;
+      top: 40px;
+      width: 18px;
+      height: 10px;
+      border-bottom: 3px solid #512b13;
+      border-radius: 0 0 12px 12px;
+    }
+
+    .pet-body {
+      position: absolute;
+      left: 24px;
+      bottom: 9px;
+      width: 70px;
+      height: 48px;
+      border-radius: 26px 26px 20px 20px;
+      background: #fff7ea;
+      border: 3px solid #7b4a26;
+    }
+
+    .pet-paw {
+      position: absolute;
+      bottom: 4px;
+      width: 18px;
+      height: 22px;
+      border-radius: 12px;
+      background: #fff7ea;
+      border: 3px solid #7b4a26;
+    }
+
+    .pet-paw.left { left: 34px; }
+    .pet-paw.right { right: 34px; }
+
+    .status-card,
+    .panel,
+    .footer {
+      border-radius: 22px;
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 1px 6px;
-      margin-left: 4px;
-      -webkit-text-fill-color: var(--text-secondary);
+      border: 1px solid rgba(255,255,255,0.76);
+      box-shadow: 0 10px 24px rgba(143, 91, 25, 0.08);
     }
 
-    /* ── Status Card ── */
     .status-card {
-      margin: 16px;
-      padding: 16px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 14px;
+      padding: 16px;
     }
 
-    .status-left {
+    .status-info {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .status-badge {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #fff8ec 0%, #ffe6bd 100%);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.85);
     }
 
     .status-dot {
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
-      flex-shrink: 0;
-      transition: all 0.3s ease;
+      transition: all 0.25s ease;
+      background: rgba(31, 41, 55, 0.18);
+      box-shadow: 0 0 0 5px rgba(31, 41, 55, 0.05);
     }
 
     .status-dot.active {
-      background: var(--accent);
-      box-shadow: 0 0 0 3px rgba(0,230,118,0.2);
-      animation: pulse 2s ease-in-out infinite;
+      background: var(--success);
+      box-shadow: 0 0 0 5px rgba(20, 133, 100, 0.16);
+      animation: pulse 1.8s ease-in-out infinite;
     }
 
-    .status-dot.inactive { background: rgba(255,255,255,0.2); }
-    .status-dot.not-enrolled { background: var(--warning); }
+    .status-dot.inactive {
+      background: rgba(31, 41, 55, 0.22);
+      box-shadow: 0 0 0 5px rgba(31, 41, 55, 0.05);
+    }
+
+    .status-dot.not-enrolled {
+      background: var(--warning);
+      box-shadow: 0 0 0 5px rgba(198, 125, 16, 0.14);
+    }
 
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.9); opacity: 0.65; }
+    }
+
+    .status-copy {
+      min-width: 0;
     }
 
     .status-label {
-      font-size: 14px;
-      font-weight: 600;
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.2;
     }
 
     .status-sublabel {
+      margin-top: 3px;
       font-size: 11px;
-      color: var(--text-secondary);
-      margin-top: 2px;
+      line-height: 1.5;
+      color: var(--muted);
     }
 
-    /* Toggle Switch */
     .toggle {
       position: relative;
-      width: 44px;
-      height: 24px;
+      width: 58px;
+      height: 32px;
+      flex-shrink: 0;
     }
 
-    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
 
     .toggle-slider {
       position: absolute;
       inset: 0;
-      background: rgba(255,255,255,0.12);
-      border-radius: 100px;
+      border-radius: 999px;
+      background: rgba(156, 163, 175, 0.42);
       cursor: pointer;
-      transition: background 0.2s ease;
+      transition: background 0.22s ease;
     }
 
     .toggle-slider::before {
-      content: '';
+      content: "";
       position: absolute;
-      width: 18px;
-      height: 18px;
-      left: 3px;
-      top: 3px;
-      background: white;
+      top: 4px;
+      left: 4px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
-      transition: transform 0.2s ease;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      background: #fff;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.16);
+      transition: transform 0.22s ease;
     }
 
     .toggle input:checked + .toggle-slider {
-      background: var(--accent);
+      background: linear-gradient(135deg, var(--teal), #31baa8);
     }
 
     .toggle input:checked + .toggle-slider::before {
-      transform: translateX(20px);
+      transform: translateX(26px);
     }
 
-    /* ── Section ── */
     .section {
-      padding: 0 16px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 4px;
     }
 
     .section-title {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-secondary);
-      margin-bottom: 10px;
+      font-family: 'Sora', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
     }
 
-    /* ── Voice Enrollment ── */
-    .enroll-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 12px;
+    .section-meta {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--orange-deep);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .feature-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .feature-card {
+      padding: 12px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.74);
+      border: 1px solid rgba(255,255,255,0.8);
+      min-height: 90px;
+    }
+
+    .feature-icon {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      font-size: 16px;
+      background: var(--surface-strong);
+    }
+
+    .feature-title {
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.35;
+      margin-bottom: 4px;
+    }
+
+    .feature-copy {
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .panel {
+      padding: 16px;
     }
 
     .enroll-card.enrolled {
-      border-color: rgba(0, 230, 118, 0.2);
-      background: rgba(0, 230, 118, 0.04);
+      background:
+        linear-gradient(135deg, rgba(30, 147, 138, 0.08), rgba(255,255,255,0.86)),
+        var(--surface);
+      border-color: rgba(20, 133, 100, 0.2);
     }
 
-    .enroll-info {
+    .enroll-top {
       display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
     }
 
     .enroll-icon {
-      width: 36px;
-      height: 36px;
-      background: var(--accent-dim);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #fff8ed 0%, #ffe2b7 100%);
+      font-size: 22px;
       flex-shrink: 0;
     }
 
     .enroll-title {
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 15px;
+      font-weight: 800;
+      margin-bottom: 4px;
     }
 
     .enroll-desc {
-      font-size: 11px;
-      color: var(--text-secondary);
-      margin-top: 2px;
-      line-height: 1.4;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
     }
 
-    /* ── Buttons ── */
+    .setup-points {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .setup-point {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.76);
+      border: 1px solid rgba(255,255,255,0.84);
+      font-size: 11px;
+      font-weight: 700;
+      color: #72552a;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+    }
+
     .btn {
       width: 100%;
-      padding: 10px 16px;
-      border-radius: 10px;
-      border: none;
-      font-family: 'DM Sans', sans-serif;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-family: 'Manrope', sans-serif;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 800;
       cursor: pointer;
-      transition: all 0.15s ease;
-      display: flex;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 7px;
+      gap: 8px;
     }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #000;
-    }
-
-    .btn-primary:hover {
-      background: #33eb91;
+    .btn:hover:not(:disabled) {
       transform: translateY(-1px);
     }
 
-    .btn-primary:active { transform: translateY(0); }
-
-    .btn-secondary {
-      background: var(--surface);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
     }
 
-    .btn-secondary:hover {
-      background: rgba(255,255,255,0.07);
+    .btn-primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-deep) 100%);
+      box-shadow: 0 12px 24px rgba(243, 109, 33, 0.24);
+    }
+
+    .btn-secondary {
+      color: var(--text);
+      background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(120, 86, 38, 0.12);
     }
 
     .btn-danger {
-      background: rgba(255, 82, 82, 0.1);
-      color: var(--danger);
-      border: 1px solid rgba(255, 82, 82, 0.2);
+      color: #b91c1c;
+      background: rgba(255, 95, 123, 0.11);
+      border: 1px solid rgba(255, 95, 123, 0.18);
     }
 
-    .btn-danger:hover { background: rgba(255, 82, 82, 0.18); }
-
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none !important;
-    }
-
-    /* ── Recording Animation ── */
-    .recording-indicator {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      background: rgba(255, 179, 0, 0.08);
-      border: 1px solid rgba(255, 179, 0, 0.2);
-      border-radius: 10px;
-      margin-top: 10px;
-    }
-
-    .recording-indicator.visible { display: flex; }
-
-    .rec-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--warning);
-      border-radius: 50%;
-      animation: pulse 0.8s ease-in-out infinite;
-      flex-shrink: 0;
-    }
-
-    .rec-text {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--warning);
-    }
-
-    .rec-timer {
-      margin-left: auto;
-      font-family: 'DM Mono', monospace;
-      font-size: 12px;
-      color: var(--warning);
-    }
-
-    /* ── API Key ── */
     .api-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255, 247, 232, 0.92));
+    }
+
+    .api-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
     }
 
     .api-label {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .api-desc {
+      margin-top: 4px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .api-link {
+      white-space: nowrap;
+      align-self: flex-start;
+      color: var(--teal);
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: var(--teal-soft);
     }
 
     .api-input {
       width: 100%;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-family: 'DM Mono', monospace;
-      font-size: 12px;
-      color: var(--text-primary);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.85);
+      color: var(--text);
+      padding: 13px 14px;
+      font: 700 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       outline: none;
-      transition: border-color 0.15s;
     }
 
     .api-input:focus {
-      border-color: rgba(0, 230, 118, 0.4);
+      border-color: rgba(30, 147, 138, 0.5);
+      box-shadow: 0 0 0 4px rgba(30, 147, 138, 0.12);
     }
 
-    .api-input::placeholder { color: var(--text-secondary); }
+    .api-input::placeholder {
+      color: #9ca3af;
+    }
 
     .api-save-row {
       display: flex;
-      gap: 8px;
-      margin-top: 8px;
+      gap: 10px;
+      margin-top: 10px;
     }
 
-    .api-save-row .btn { flex: 1; }
-
-    /* ── Transcript History ── */
     .history-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
+      padding-bottom: 12px;
+    }
+
+    .history-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
       margin-bottom: 12px;
     }
 
+    .history-title {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .history-chip {
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.8);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8b6a34;
+    }
+
     .history-empty {
-      font-size: 12px;
-      color: var(--text-secondary);
+      padding: 20px 14px;
+      border-radius: 18px;
       text-align: center;
-      padding: 8px 0;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--muted);
+      background: rgba(255,255,255,0.64);
+      border: 1px dashed rgba(120, 86, 38, 0.18);
     }
 
     .history-list {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      max-height: 100px;
+      gap: 8px;
+      max-height: 132px;
       overflow-y: auto;
+      padding-right: 2px;
       scrollbar-width: thin;
-      scrollbar-color: rgba(255,255,255,0.1) transparent;
+      scrollbar-color: rgba(120, 86, 38, 0.24) transparent;
     }
 
     .history-item {
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.74);
+      border: 1px solid rgba(255,255,255,0.78);
       font-size: 12px;
-      color: rgba(255,255,255,0.7);
-      padding: 6px 10px;
-      background: rgba(255,255,255,0.03);
-      border-radius: 7px;
-      line-height: 1.4;
+      line-height: 1.55;
+      color: #43505e;
     }
 
     .history-item-time {
-      font-family: 'DM Mono', monospace;
+      margin-bottom: 4px;
       font-size: 10px;
-      color: var(--text-secondary);
-      margin-bottom: 2px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--orange-deep);
     }
 
-    /* ── Footer ── */
+    .notification {
+      display: none;
+      padding: 12px 14px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.45;
+      border: 1px solid transparent;
+    }
+
+    .notification.visible {
+      display: block;
+    }
+
+    .notification.success {
+      color: var(--success);
+      background: rgba(20, 133, 100, 0.1);
+      border-color: rgba(20, 133, 100, 0.14);
+    }
+
+    .notification.error {
+      color: #b91c1c;
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.14);
+    }
+
+    .notification.info {
+      color: #9a5b12;
+      background: rgba(255, 183, 77, 0.14);
+      border-color: rgba(255, 183, 77, 0.18);
+    }
+
+    .not-on-meeting {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255, 190, 92, 0.16);
+      border: 1px solid rgba(198, 125, 16, 0.18);
+      font-size: 12px;
+      line-height: 1.55;
+      color: #8a5b10;
+    }
+
     .footer {
-      padding: 12px 16px 16px;
-      border-top: 1px solid var(--border);
+      padding: 14px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 12px;
     }
 
     .footer-note {
       font-size: 11px;
-      color: var(--text-secondary);
-    }
-
-    .footer-link {
-      font-size: 11px;
-      color: rgba(0, 230, 118, 0.7);
-      text-decoration: none;
-    }
-
-    /* ── Notification ── */
-    .notification {
-      margin: 0 16px 12px;
-      padding: 10px 14px;
-      border-radius: 10px;
-      font-size: 12px;
-      font-weight: 500;
-      display: none;
-    }
-
-    .notification.visible { display: block; }
-    .notification.success { background: rgba(0,230,118,0.1); color: var(--accent); border: 1px solid rgba(0,230,118,0.2); }
-    .notification.error   { background: rgba(255,82,82,0.1); color: var(--danger); border: 1px solid rgba(255,82,82,0.2); }
-    .notification.info    { background: rgba(100,181,246,0.1); color: #64b5f6; border: 1px solid rgba(100,181,246,0.2); }
-
-    /* Not on meeting page warning */
-    .not-on-meeting {
-      margin: 16px;
-      padding: 14px;
-      background: rgba(255, 179, 0, 0.06);
-      border: 1px solid rgba(255, 179, 0, 0.2);
-      border-radius: 12px;
-      font-size: 12px;
-      color: var(--warning);
       line-height: 1.5;
-      text-align: center;
+      color: var(--muted);
+      max-width: 220px;
+    }
+
+    .footer .btn {
+      width: auto;
+      padding-inline: 14px;
+      font-size: 12px;
     }
   </style>
 </head>
 <body>
+  <div class="app-shell">
+    <div class="content">
+      <div class="header">
+        <div class="brand">
+          <div class="brand-mark">🐾</div>
+          <div class="brand-copy">
+            <div class="brand-label">Inspired by pet-care commerce</div>
+            <div class="brand-title">Hearly</div>
+            <div class="brand-subtitle">Friendlier meeting setup in one calm place</div>
+          </div>
+        </div>
+        <div class="pill">v1.1</div>
+      </div>
 
-<!-- Header -->
-<div class="header">
-  <div class="logo">
-    <div class="logo-icon">🎧</div>
-    <span class="logo-text">Hearly</span>
-    <span class="logo-version">1.1.0</span>
-  </div>
-</div>
+      <section class="hero">
+        <div class="hero-copy">
+          <h1>Warm, trusted product design for your voice workflow.</h1>
+          <p>
+            Built with the welcoming category-first feel of a modern pet store: soft gradients,
+            helpful cards, quick setup, and reassuring status at a glance.
+          </p>
+          <div class="hero-tags">
+            <span class="hero-tag">Quick onboarding</span>
+            <span class="hero-tag">Friendly alerts</span>
+            <span class="hero-tag">Clear controls</span>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="pet-card">
+            <div class="pet-figure">
+              <div class="pet-ear left"></div>
+              <div class="pet-ear right"></div>
+              <div class="pet-head">
+                <div class="pet-face">
+                  <div class="pet-eye left"></div>
+                  <div class="pet-eye right"></div>
+                  <div class="pet-nose"></div>
+                  <div class="pet-mouth"></div>
+                </div>
+              </div>
+              <div class="pet-body"></div>
+              <div class="pet-paw left"></div>
+              <div class="pet-paw right"></div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-<!-- Not on meeting page warning (shown conditionally) -->
-<div class="not-on-meeting" id="not-on-meeting" style="display:none">
-  🎙 Open Google Meet or Zoom for Hearly to activate
-</div>
+      <div class="notification" id="notification"></div>
 
-<!-- Notification -->
-<div class="notification" id="notification"></div>
+      <div class="not-on-meeting" id="not-on-meeting" style="display:none">
+        Open Google Meet, Zoom, Teams, or localhost first so Hearly can attach to the active meeting tab.
+      </div>
 
-<!-- Status Card -->
-<div class="status-card" id="status-card">
-  <div class="status-left">
-    <div class="status-dot inactive" id="status-dot"></div>
-    <div>
-      <div class="status-label" id="status-label">Hearly Off</div>
-      <div class="status-sublabel" id="status-sublabel">Toggle to start filtering</div>
-    </div>
-  </div>
-  <label class="toggle">
-    <input type="checkbox" id="main-toggle" />
-    <span class="toggle-slider"></span>
-  </label>
-</div>
+      <section class="status-card" id="status-card">
+        <div class="status-info">
+          <div class="status-badge">
+            <div class="status-dot inactive" id="status-dot"></div>
+          </div>
+          <div class="status-copy">
+            <div class="status-label" id="status-label">Hearly Off</div>
+            <div class="status-sublabel" id="status-sublabel">Toggle to start filtering</div>
+          </div>
+        </div>
+        <label class="toggle" aria-label="Toggle Hearly">
+          <input type="checkbox" id="main-toggle" />
+          <span class="toggle-slider"></span>
+        </label>
+      </section>
 
-<!-- Voice Enrollment Section -->
-<div class="section">
-  <div class="section-title">Voice Profile</div>
-  <div class="enroll-card" id="enroll-card">
-    <div class="enroll-info">
-      <div class="enroll-icon">🎤</div>
-      <div>
-        <div class="enroll-title" id="enroll-title">Not enrolled yet</div>
-        <div class="enroll-desc" id="enroll-desc">Train Hearly to recognize your voice (3 phrases)</div>
+      <section class="section">
+        <div class="section-header">
+          <div class="section-title">Why This Layout Works</div>
+          <div class="section-meta">Reference cues</div>
+        </div>
+        <div class="feature-strip">
+          <article class="feature-card">
+            <div class="feature-icon">🎯</div>
+            <div class="feature-title">Focused actions</div>
+            <div class="feature-copy">The primary task stays visible without looking technical.</div>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">🛍️</div>
+            <div class="feature-title">Merchandising rhythm</div>
+            <div class="feature-copy">Short, scannable cards mimic ecommerce category browsing.</div>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">🤝</div>
+            <div class="feature-title">Trust-first tone</div>
+            <div class="feature-copy">Soft colors and rounded shapes make setup feel approachable.</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div class="section-title">Voice Profile</div>
+          <div class="section-meta">3-step setup</div>
+        </div>
+        <div class="panel enroll-card" id="enroll-card">
+          <div class="enroll-top">
+            <div class="enroll-icon">🎙️</div>
+            <div>
+              <div class="enroll-title" id="enroll-title">Not enrolled yet</div>
+              <div class="enroll-desc" id="enroll-desc">Train Hearly to recognize your voice with a short sample.</div>
+            </div>
+          </div>
+          <div class="setup-points">
+            <div class="setup-point">1. Open meeting</div>
+            <div class="setup-point">2. Tap train</div>
+            <div class="setup-point">3. Speak naturally</div>
+          </div>
+          <button class="btn btn-primary" id="enroll-btn">
+            <span>Start Training</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div class="section-title">Speech-to-Text API</div>
+          <div class="section-meta">Required</div>
+        </div>
+        <div class="panel api-card">
+          <div class="api-top">
+            <div>
+              <div class="api-label">Deepgram API Key</div>
+              <div class="api-desc">Save your key once to turn muted background speech into private transcripts.</div>
+            </div>
+            <a class="api-link" href="https://deepgram.com" target="_blank" rel="noreferrer">Get key</a>
+          </div>
+          <input
+            class="api-input"
+            type="password"
+            id="api-key-input"
+            placeholder="dg_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          />
+          <div class="api-save-row">
+            <button class="btn btn-primary" id="save-key-btn">Save Key</button>
+            <button class="btn btn-secondary" id="show-key-btn">Show</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div class="section-title">Recent Transcripts</div>
+          <div class="section-meta">Private view</div>
+        </div>
+        <div class="panel history-card">
+          <div class="history-top">
+            <div class="history-title">Captured nearby speech</div>
+            <div class="history-chip">Live feed</div>
+          </div>
+          <div id="history-content">
+            <div class="history-empty">No transcripts yet. Once Hearly filters another speaker, their words will show up here for you only.</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        <div class="footer-note">Background voices are muted from the call and surfaced to you as readable text.</div>
+        <button class="btn btn-danger" id="reset-btn">Reset</button>
       </div>
     </div>
-    <button class="btn btn-primary" id="enroll-btn">
-      <span>🎙</span> Train My Voice
-    </button>
   </div>
-</div>
 
-<!-- Deepgram API Key -->
-<div class="section">
-  <div class="section-title">Speech-to-Text API</div>
-  <div class="api-card">
-    <div class="api-label">
-      🔑 Deepgram API Key
-      <a href="https://deepgram.com" target="_blank" style="color: rgba(0,230,118,0.6); font-size:10px; margin-left: auto; text-decoration:none;">Get free key →</a>
-    </div>
-    <input
-      class="api-input"
-      type="password"
-      id="api-key-input"
-      placeholder="dg_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    />
-    <div class="api-save-row">
-      <button class="btn btn-primary" id="save-key-btn">Save Key</button>
-      <button class="btn btn-secondary" id="show-key-btn">Show</button>
-    </div>
-  </div>
-</div>
-
-<!-- Transcript History -->
-<div class="section">
-  <div class="section-title">Recent Transcripts</div>
-  <div class="history-card">
-    <div id="history-content">
-      <div class="history-empty">No transcripts yet</div>
-    </div>
-  </div>
-</div>
-
-<!-- Footer -->
-<div class="footer">
-  <span class="footer-note">Background voices → muted + shown as text</span>
-  <button class="btn btn-danger" id="reset-btn" style="width:auto; padding: 5px 10px; font-size: 11px;">Reset</button>
-</div>
-
-<script src="popup.js"></script>
+  <script src="popup.js"></script>
 </body>
 </html>

@@ -6,6 +6,8 @@
 (function () {
   "use strict";
 
+  const EXTENSION_ID = document.currentScript?.dataset?.extensionId;
+
   // ══════════════════════════════════════════
   //  STATE
   // ══════════════════════════════════════════
@@ -20,8 +22,11 @@
     filteredStream: null,
     backgroundBuffer: [],     
     backgroundSilenceTimer: null,
-    requestIdCounter: 0,
-    deepgramApiKey: null,
+    isEnrollmentInProgress: false,
+    transcriptionQueue: [],
+    isTranscribing: false,
+    isMeetingTranscribing: false,
+    activeMeetingTranscript: null, // Used for interim results
   };
 
   // ══════════════════════════════════════════
@@ -69,8 +74,29 @@
     const toast = document.createElement("div");
     toast.id = "hearly-toast";
 
-    overlay.append(badge, transcriptBox, toast);
+    const controls = document.createElement("div");
+    controls.id = "hearly-controls";
+    const startBtn = document.createElement("button");
+    startBtn.id = "hearly-start-meeting-btn";
+    startBtn.textContent = "Start Meeting Intelligence";
+    controls.append(startBtn);
+
+    overlay.append(badge, transcriptBox, toast, controls);
     document.body.appendChild(overlay);
+
+    startBtn.addEventListener("click", () => {
+      if (State.isMeetingTranscribing) {
+        window.postMessage({ hearlyMsg: true, type: "HEARLY_STOP_MEETING" }, "*");
+        State.isMeetingTranscribing = false;
+        startBtn.textContent = "Start Meeting Intelligence";
+        startBtn.classList.remove("hearly-active");
+      } else {
+        window.postMessage({ hearlyMsg: true, type: "HEARLY_START_MEETING" }, "*");
+        State.isMeetingTranscribing = true;
+        startBtn.textContent = "Stop Transcribing";
+        startBtn.classList.add("hearly-active");
+      }
+    });
 
     clearBtn.addEventListener("click", () => {
       content.innerHTML = ""; // Emptying is usually fine, or use child removal
@@ -163,6 +189,9 @@
   // ══════════════════════════════════════════
 
   async function enrollVoice() {
+    if (State.isEnrollmentInProgress) return;
+
+    State.isEnrollmentInProgress = true;
     createEnrollmentUI();
     const overlay = document.getElementById("hearly-enroll-overlay");
     overlay.classList.add("hearly-visible");
@@ -177,10 +206,14 @@
     const allFeatures = [];
     const canvas = document.getElementById("hearly-waveform-canvas");
     const ctx = canvas.getContext("2d");
+    if (canvas) {
+      canvas.width = canvas.clientWidth || 380;
+      canvas.height = canvas.clientHeight || 60;
+    }
     
     let stream, audioContext, analyser;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await originalGetMedia({ audio: true });
       audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
       const source = audioContext.createMediaStreamSource(stream);
       analyser = audioContext.createAnalyser();
@@ -225,6 +258,7 @@
       State.voiceProfile = profile;
       State.isEnrolled = true;
       window.postMessage({ hearlyMsg: true, type: "HEARLY_SAVE_PROFILE", profile }, "*");
+      syncProcessorState();
 
       const msgEl = document.getElementById("hearly-enroll-message");
       if (msgEl) msgEl.textContent = "✅ Voice Profile Registered!";
@@ -234,16 +268,18 @@
         isVisualizing = false;
         stream.getTracks().forEach(t => t.stop());
         audioContext.close();
-        updateBadge("inactive");
+        updateBadge(State.isActive ? "active" : "inactive");
       }, 2000);
 
     } catch (err) {
       console.error("Enrollment failed:", err);
       showToast("Enrollment failed: " + err.message, "error");
       overlay.classList.remove("hearly-visible");
-      updateBadge("inactive");
+      updateBadge(State.isActive ? "active" : "inactive");
       if (audioContext) audioContext.close();
       if (stream) stream.getTracks().forEach(t => t.stop());
+    } finally {
+      State.isEnrollmentInProgress = false;
     }
   }
 
@@ -260,8 +296,12 @@
       }
     };
 
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 0;
+
     source.connect(processor);
-    processor.connect(ctx.destination);
+    processor.connect(gainNode);
+    gainNode.connect(ctx.destination);
 
     const countdown = document.getElementById("hearly-enroll-countdown");
     let timeLeft = durationMs;
@@ -297,27 +337,72 @@
   }
 
   function extractMFCC(audioData) {
-    const spectrum = computeFFTMagnitude(audioData);
-    const melFilters = applyMelFilterbank(spectrum, SAMPLE_RATE, 26);
+    const N = audioData.length;
+    // 1. Hamming Window
+    const windowed = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      windowed[i] = audioData[i] * (0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (N - 1)));
+    }
+
+    // 2. FFT
+    const { mag } = computeFFT(windowed);
+    const spectrum = mag.slice(0, N / 2);
+
+    // 3. Mel Filterbank (26 filters)
+    const melFilters = applyMelFilterbank(spectrum, 16000, 26);
+    
+    // 4. Log and DCT
     const logMel = melFilters.map((v) => Math.log(v + 1e-8));
-    const mfcc = applyDCT(logMel);
-    return mfcc.slice(0, 13); 
+    const dct = applyDCT(logMel);
+    
+    return dct.slice(0, 13); // First 13 coefficients
   }
 
-  function computeFFTMagnitude(signal) {
-    const N = signal.length;
-    const magnitude = new Float32Array(N / 2);
-    // Magnitude approximation
-    for (let k = 0; k < N / 2; k++) {
-      let real = 0, imag = 0;
-      for (let n = 0; n < N; n++) {
-        const angle = (2 * Math.PI * k * n) / N;
-        real += signal[n] * Math.cos(angle);
-        imag -= signal[n] * Math.sin(angle);
-      }
-      magnitude[k] = Math.sqrt(real * real + imag * imag);
+  function computeFFT(input) {
+    const n = input.length;
+    const real = new Float32Array(input);
+    const imag = new Float32Array(n);
+
+    // Bit-reversal permutation
+    for (let i = 1, j = 0; i < n; i++) {
+        let bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) {
+            [real[i], real[j]] = [real[j], real[i]];
+            [imag[i], imag[j]] = [imag[j], imag[i]];
+        }
     }
-    return magnitude;
+
+    // Cooley-Tukey iterative Radix-2 FFT
+    for (let len = 2; len <= n; len <<= 1) {
+        const ang = 2 * Math.PI / len;
+        const wlen_real = Math.cos(ang);
+        const wlen_imag = -Math.sin(ang);
+        for (let i = 0; i < n; i += len) {
+            let w_real = 1;
+            let w_imag = 0;
+            for (let j = 0; j < len / 2; j++) {
+                const u_real = real[i + j];
+                const u_imag = imag[i + j];
+                const v_real = real[i + j + len / 2] * w_real - imag[i + j + len / 2] * w_imag;
+                const v_imag = real[i + j + len / 2] * w_imag + imag[i + j + len / 2] * w_real;
+                real[i + j] = u_real + v_real;
+                imag[i + j] = u_imag + v_imag;
+                real[i + j + len / 2] = u_real - v_real;
+                imag[i + j + len / 2] = u_imag - v_imag;
+                const tmp_real = w_real * wlen_real - w_imag * wlen_imag;
+                w_imag = w_real * wlen_imag + w_imag * wlen_real;
+                w_real = tmp_real;
+            }
+        }
+    }
+
+    const mag = new Float32Array(n / 2);
+    for (let i = 0; i < n / 2; i++) {
+        mag[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+    }
+    return { real, imag, mag };
   }
 
   function applyMelFilterbank(spectrum, sampleRate, numFilters) {
@@ -386,7 +471,7 @@
 
   navigator.mediaDevices.getUserMedia = async function (constraints) {
     const stream = await originalGetMedia(constraints);
-    if (!constraints?.audio || !State.isActive || !State.isEnrolled) return stream;
+    if (!hasAudioTrackRequest(constraints)) return stream;
     return processStream(stream);
   };
 
@@ -395,11 +480,10 @@
     State.audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
     
     // Attempt worklet load
-    const extId = document.currentScript?.dataset?.extensionId;
-    const workletUrl = extId ? `chrome-extension://${extId}/src/worklet/voice-processor.js` : null;
+    const workletUrl = EXTENSION_ID ? `chrome-extension://${EXTENSION_ID}/src/worklet/voice-processor.js` : null;
     try {
       if (workletUrl) await State.audioContext.audioWorklet.addModule(workletUrl);
-    } catch(e) { console.warn("Worklet failed, fallback used"); }
+    } catch(e) { console.warn("Worklet failed, fallback used", e); }
 
     State.sourceNode = State.audioContext.createMediaStreamSource(rawStream);
     const destination = State.audioContext.createMediaStreamDestination();
@@ -407,6 +491,8 @@
     
     State.filteredStream = destination.stream;
     rawStream.getVideoTracks().forEach(t => State.filteredStream.addTrack(t));
+    bindPipelineCleanup(rawStream, State.audioContext);
+    syncProcessorState();
     return State.filteredStream;
   }
 
@@ -423,6 +509,7 @@
       source.connect(node);
       node.connect(destination);
       State.processorNode = node;
+      syncProcessorState();
       return;
     } catch(e) {}
 
@@ -446,6 +533,7 @@
     source.connect(processor);
     processor.connect(destination);
     State.processorNode = processor;
+    syncProcessorState();
   }
 
   // ══════════════════════════════════════════
@@ -474,7 +562,8 @@
   function processBackgroundAudio(samples) {
     const wav = floatArrayToWav(samples, SAMPLE_RATE);
     const base64 = arrayBufferToBase64(wav);
-    window.postMessage({ hearlyMsg: true, type: "HEARLY_TRANSCRIBE", audioBase64: base64 }, "*");
+    State.transcriptionQueue.push(base64);
+    drainTranscriptionQueue();
   }
 
   function floatArrayToWav(samples, rate) {
@@ -505,24 +594,124 @@
     return d.innerHTML;
   }
 
-  function showTranscript(text) {
+  function showTranscript(text, source = "background", isFinal = true, speaker = 0) {
     const box = document.getElementById("hearly-transcript-box");
     const content = document.getElementById("hearly-transcript-content");
+    const headerTitle = document.querySelector("#hearly-transcript-header span");
     if (!box || !content) return;
     
-    const entry = document.createElement("div");
-    entry.className = "hearly-entry";
-    
-    const entryText = document.createElement("span");
-    entryText.className = "hearly-entry-text";
-    entryText.textContent = text;
-    
-    entry.appendChild(entryText);
-    content.appendChild(entry);
+    // Update header based on source
+    if (headerTitle) {
+      headerTitle.textContent = source === "meeting" ? "🎙️ Meeting Transcript" : "👤 Someone nearby said:";
+    }
+
+    if (source === "meeting" && !isFinal) {
+      // Handle interim results for meeting transcription
+      if (!State.activeMeetingTranscript) {
+        State.activeMeetingTranscript = document.createElement("div");
+        State.activeMeetingTranscript.className = "hearly-entry hearly-interim";
+        content.appendChild(State.activeMeetingTranscript);
+      }
+      State.activeMeetingTranscript.textContent = `[Speaker ${speaker}]: ${text}`;
+      content.scrollTop = content.scrollHeight;
+      box.classList.add("hearly-visible");
+      return;
+    }
+
+    if (source === "meeting" && isFinal) {
+      if (State.activeMeetingTranscript) {
+        State.activeMeetingTranscript.classList.remove("hearly-interim");
+        State.activeMeetingTranscript.textContent = `[Speaker ${speaker}]: ${text}`;
+        State.activeMeetingTranscript = null;
+      } else {
+        const entry = document.createElement("div");
+        entry.className = "hearly-entry";
+        entry.textContent = `[Speaker ${speaker}]: ${text}`;
+        content.appendChild(entry);
+      }
+    } else {
+      // Background source
+      const entry = document.createElement("div");
+      entry.className = "hearly-entry hearly-background-alert";
+      
+      const entryText = document.createElement("span");
+      entryText.className = "hearly-entry-text";
+      entryText.textContent = text;
+      
+      entry.appendChild(entryText);
+      content.appendChild(entry);
+    }
+
     content.scrollTop = content.scrollHeight;
     box.classList.add("hearly-visible");
-    clearTimeout(State._hideT);
-    State._hideT = setTimeout(() => box.classList.remove("hearly-visible"), 8000);
+    
+    // Auto-hide after 8 seconds if it's a background alert
+    if (source === "background") {
+      clearTimeout(State._hideT);
+      State._hideT = setTimeout(() => {
+        if (!State.isMeetingTranscribing) box.classList.remove("hearly-visible");
+      }, 8000);
+    }
+  }
+
+  async function drainTranscriptionQueue() {
+    if (State.isTranscribing || State.transcriptionQueue.length === 0) return;
+
+    State.isTranscribing = true;
+    const audioBase64 = State.transcriptionQueue.shift();
+    window.postMessage({ hearlyMsg: true, type: "HEARLY_TRANSCRIBE", audioBase64 }, "*");
+  }
+
+  function handleTranscriptResult(text) {
+    State.isTranscribing = false;
+
+    const normalized = typeof text === "string" ? text.trim() : "";
+    if (!normalized) {
+      drainTranscriptionQueue();
+      return;
+    }
+
+    if (normalized.startsWith("⚠️") || normalized.startsWith("❌")) {
+      showToast(normalized, "error");
+      drainTranscriptionQueue();
+      return;
+    }
+
+    showTranscript(normalized);
+    drainTranscriptionQueue();
+  }
+
+  function syncProcessorState() {
+    if (!State.processorNode?.port) return;
+
+    State.processorNode.port.postMessage({ type: "SET_ACTIVE", data: State.isActive });
+    if (State.voiceProfile) {
+      State.processorNode.port.postMessage({ type: "SET_PROFILE", data: State.voiceProfile });
+    }
+  }
+
+  function hasAudioTrackRequest(constraints) {
+    if (constraints === true) return true;
+    if (!constraints || typeof constraints !== "object") return false;
+    return Boolean(constraints.audio);
+  }
+
+  function bindPipelineCleanup(rawStream, audioContext) {
+    const cleanup = () => {
+      if (State.audioContext === audioContext) {
+        State.processorNode = null;
+        State.sourceNode = null;
+        State.originalStream = null;
+        State.filteredStream = null;
+        State.audioContext = null;
+      }
+
+      audioContext.close().catch(() => {});
+    };
+
+    rawStream.getTracks().forEach((track) => {
+      track.addEventListener("ended", cleanup, { once: true });
+    });
   }
 
   // ══════════════════════════════════════════
@@ -536,14 +725,29 @@
         State.isActive = msg.data.hearlyActive;
         State.isEnrolled = msg.data.hearlyEnrolled;
         State.voiceProfile = msg.data.voiceProfile;
+        syncProcessorState();
         updateBadge(State.isActive ? "active" : "inactive");
     } else if (msg.type === "HEARLY_TOGGLE") {
         State.isActive = msg.value;
+        if (!State.isActive) {
+          State.backgroundBuffer = [];
+          State.transcriptionQueue = [];
+          State.isTranscribing = false;
+          clearTimeout(State.backgroundSilenceTimer);
+        }
+        syncProcessorState();
         updateBadge(State.isActive ? "active" : "inactive");
     } else if (msg.type === "HEARLY_TRANSCRIPT_RESULT") {
-        showTranscript(msg.text);
+        handleTranscriptResult(msg.text);
+    } else if (msg.type === "HEARLY_PROFILE_UPDATED") {
+        State.voiceProfile = msg.profile;
+        State.isEnrolled = true;
+        syncProcessorState();
+        showToast("Voice profile updated", "success");
     } else if (msg.type === "HEARLY_ENROLL") {
         enrollVoice();
+    } else if (msg.type === "HEARLY_MEETING_TRANSCRIPT") {
+        showTranscript(msg.text, "meeting", msg.isFinal, msg.speaker);
     }
   });
 
