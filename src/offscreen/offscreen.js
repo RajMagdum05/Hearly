@@ -1,27 +1,50 @@
 // ─────────────────────────────────────────────
-//  Hearly — Offscreen Audio Processor
-//  Handles tabCapture streams and Deepgram WS
+//  Hearly — Offscreen Audio Processor (LOCAL)
+//  Handles tabCapture and Local Whisper Transcription
 // ─────────────────────────────────────────────
 
-let mediaRecorder;
-let socket;
-let audioContext;
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers';
+
+// Configuration for local environment
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+let transcriber = null;
+let audioContext = null;
+let processor = null;
+let source = null;
+let audioBuffer = []; // Accumulate samples for inference
+const CHUNK_THRESHOLD = 16000 * 4; // Process every 4 seconds of audio
 
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.target !== "offscreen") return;
 
   if (message.type === "START_TAB_RECORDING") {
-    startCapture(message.data.streamId, message.data.apiKey);
+    startLocalCapture(message.data.streamId);
   } else if (message.type === "STOP_TAB_RECORDING") {
-    stopCapture();
+    stopLocalCapture();
   }
 });
 
-async function startCapture(streamId, apiKey) {
-  if (socket || mediaRecorder) {
-    console.warn("[Hearly-Offscreen] Capture already in progress, stopping old one.");
-    stopCapture();
+async function ensureTranscriber() {
+  if (transcriber) return;
+  console.log("[Hearly-Offscreen] Loading Local Whisper Model (Xenova/whisper-tiny.en)...");
+  try {
+    transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+      progress_callback: (p) => {
+        if (p.status === 'progress') {
+            console.log(`[Hearly-Offscreen] Model Loading: ${p.progress.toFixed(2)}%`);
+        }
+      }
+    });
+    console.log("[Hearly-Offscreen] Local Whisper Model Loaded.");
+  } catch (err) {
+    console.error("[Hearly-Offscreen] Failed to load model:", err);
   }
+}
+
+async function startLocalCapture(streamId) {
+  await ensureTranscriber();
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -33,99 +56,66 @@ async function startCapture(streamId, apiKey) {
       },
     });
 
-    // ── 1. Keep audio audible to the user ────────────────
-    audioContext = new AudioContext();
-    const source = audioContext.createMediaStreamSource(stream);
+    audioContext = new AudioContext({ sampleRate: 16000 });
+    source = audioContext.createMediaStreamSource(stream);
+    
+    // ── Keep audio audible ────────────────────────
     source.connect(audioContext.destination);
 
-    // ── 2. Initialize Deepgram WebSocket ────────────────
-    const url = "wss://api.deepgram.com/v1/listen?model=nova-2&encoding=linear16&sample_rate=16000&channels=1&diarize=true&smart_format=true&interim_results=true";
-    
-    socket = new WebSocket(url, ["token", apiKey]);
+    // ── Inference Processor ───────────────────────
+    processor = audioContext.createScriptProcessor(4096, 1, 1);
+    source.connect(processor);
+    processor.connect(audioContext.destination);
 
-    socket.onopen = () => {
-      console.log("[Hearly-Offscreen] Deepgram WebSocket opened");
-      startStreaming(stream);
-    };
+    processor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      audioBuffer.push(...input);
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.channel?.alternatives?.[0]?.transcript) {
-        const transcript = data.channel.alternatives[0].transcript;
-        const isFinal = data.is_final;
-        const speaker = data.channel.alternatives[0].words?.[0]?.speaker ?? 0;
-
-        chrome.runtime.sendMessage({
-          type: "MEETING_TRANSCRIPT",
-          text: transcript,
-          isFinal,
-          speaker,
-        });
+      if (audioBuffer.length >= CHUNK_THRESHOLD) {
+        const toProcess = new Float32Array(audioBuffer);
+        audioBuffer = []; // Clear for next window
+        runInference(toProcess);
       }
     };
 
-    socket.onerror = (error) => {
-      console.error("[Hearly-Offscreen] Deepgram WebSocket error:", error);
-    };
-
-    socket.onclose = () => {
-      console.log("[Hearly-Offscreen] Deepgram WebSocket closed");
-    };
-
+    console.log("[Hearly-Offscreen] Local capture started.");
   } catch (err) {
-    console.error("[Hearly-Offscreen] Failed to start capture:", err);
+    console.error("[Hearly-Offscreen] Capture failed:", err);
   }
 }
 
-function startStreaming(stream) {
-  // Use a ScriptProcessor or AudioWorklet to get raw PCM
-  // ScriptProcessor is deprecated but easier for a quick MVP in offscreen
-  const processor = audioContext.createScriptProcessor(4096, 1, 1);
-  const source = audioContext.createMediaStreamSource(stream);
-  
-  source.connect(processor);
-  processor.connect(audioContext.destination); // Required to keep it alive
+async function runInference(samples) {
+  if (!transcriber) return;
 
-  processor.onaudioprocess = (e) => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      const inputData = e.inputBuffer.getChannelData(0);
-      const pcmData = floatTo16BitPCM(inputData);
-      socket.send(pcmData);
-    }
-  };
+  try {
+    const start = performance.now();
+    const result = await transcriber(samples, {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      language: 'english',
+      task: 'transcribe',
+    });
+    const end = performance.now();
 
-  mediaRecorder = {
-    stop: () => {
-      source.disconnect();
-      processor.disconnect();
+    const text = result.text.trim();
+    if (text && text.length > 2) {
+      console.log(`[Hearly-Offscreen] Local Transcript (${(end-start).toFixed(0)}ms):`, text);
+      chrome.runtime.sendMessage({
+        type: "MEETING_TRANSCRIPT",
+        text: text,
+        isFinal: true,
+        speaker: 0, // Local Whisper tiny doesn't do diarization well
+      });
     }
-  };
+  } catch (err) {
+    console.error("[Hearly-Offscreen] Inference error:", err);
+  }
 }
 
-function stopCapture() {
-  if (mediaRecorder) {
-    mediaRecorder.stop();
-    mediaRecorder = null;
-  }
-  if (socket) {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: "CloseStream" }));
-    }
-    socket.close();
-    socket = null;
-  }
-  if (audioContext) {
-    audioContext.close();
-    audioContext = null;
-  }
-  console.log("[Hearly-Offscreen] Capture stopped");
-}
-
-function floatTo16BitPCM(input) {
-  const output = new Int16Array(input.length);
-  for (let i = 0; i < input.length; i++) {
-    const s = Math.max(-1, Math.min(1, input[i]));
-    output[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-  }
-  return output.buffer;
+function stopLocalCapture() {
+  if (source) source.disconnect();
+  if (processor) processor.disconnect();
+  if (audioContext) audioContext.close();
+  audioBuffer = [];
+  console.log("[Hearly-Offscreen] Local capture stopped.");
 }

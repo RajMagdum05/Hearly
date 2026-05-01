@@ -63,6 +63,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   syncUI();
 
+  const modeBadge = document.createElement("div");
+  modeBadge.style.cssText = "font-size: 10px; opacity: 0.6; margin-top: 5px; text-align: center;";
+  modeBadge.textContent = currentState.deepgramApiKey ? "🚀 Cloud Mode Active" : "🏠 Local Privacy Mode Active";
+  statusCard.appendChild(modeBadge);
+
   // ── Toggle Hearly on/off ───────────────────
   mainToggle.addEventListener("change", async () => {
     const value = mainToggle.checked;
@@ -129,7 +134,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
     await chrome.runtime.sendMessage({ type: "SET_API_KEY", key });
-    showNotification("🔑 API key saved!", "success");
+    showNotification("🔑 API key saved! (Switching to High-Accuracy Cloud Mode)", "success");
   });
 
   // ── Show/hide API key ──────────────────────
