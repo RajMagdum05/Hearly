@@ -9,6 +9,7 @@ const DEFAULT_STORAGE = {
   voiceProfile: null,
   deepgramApiKey: null,
   transcriptHistory: [],
+  filterMode: "smart",
 };
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -28,7 +29,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "GET_STATE":
       chrome.storage.local.get(
-        ["hearlyActive", "hearlyEnrolled", "deepgramApiKey"],
+        ["hearlyActive", "hearlyEnrolled", "deepgramApiKey", "filterMode"],
         (data) => sendResponse(data)
       );
       return true;
@@ -36,6 +37,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "SET_ACTIVE":
       chrome.storage.local.set({ hearlyActive: message.value });
       broadcastToMeetingTabs({ type: "HEARLY_TOGGLE", value: message.value });
+      sendResponse({ ok: true });
+      return true;
+
+    case "SET_FILTER_MODE":
+      chrome.storage.local.set({ filterMode: message.value });
+      broadcastToMeetingTabs({ type: "HEARLY_FILTER_MODE_UPDATED", value: message.value });
       sendResponse({ ok: true });
       return true;
 
@@ -100,12 +107,16 @@ async function startMeetingTranscription(tabId) {
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
   const { deepgramApiKey } = await chrome.storage.local.get("deepgramApiKey");
 
+  if (!deepgramApiKey) {
+    throw new Error("Deepgram API Key not configured.");
+  }
+
   await ensureOffscreenDocument();
 
   chrome.runtime.sendMessage({
     type: "START_TAB_RECORDING",
     target: "offscreen",
-    data: { streamId, apiKey: deepgramApiKey || "" } // API Key is now optional for local
+    data: { streamId, apiKey: deepgramApiKey }
   });
 }
 

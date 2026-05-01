@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "open -a \"Google Chrome\" --args --load-extension=\"$PWD\"",
     "demo": "open -a \"Google Chrome\" \"file://$PWD/test_demo.html\"",
-    "test": "node --check src/background/service-worker.js && node --check src/content/injector.js && node --check src/content/overlay.js && node --check src/popup/popup.js && node --check src/worklet/voice-processor.js"
+    "test": "node --check src/background/service-worker.js && node --check src/content/injector.js && node --check src/content/overlay.js && node --check src/offscreen/offscreen.js && node --check src/popup/popup.js && node --check src/worklet/voice-processor.js"
   },
   "author": "",
   "license": "ISC"

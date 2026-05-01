@@ -44,6 +44,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     hearlyEnrolled: false,
     deepgramApiKey: "",
     transcriptHistory: [],
+    filterMode: "smart",
   };
   let selectedMode = "smart";
 
@@ -51,6 +52,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   currentState = await loadState();
   mainToggle.checked = currentState.hearlyActive;
   apiKeyInput.value  = currentState.deepgramApiKey;
+  selectedMode = currentState.filterMode || "smart";
 
   // ── Check if on meeting page ───────────────
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -157,9 +159,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   modeButtons.forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       selectedMode = button.dataset.mode || "smart";
+      currentState.filterMode = selectedMode;
       syncModeButtons();
+      await chrome.runtime.sendMessage({ type: "SET_FILTER_MODE", value: selectedMode });
       if (selectedMode === "off" && currentState.hearlyActive) {
         mainToggle.click();
       }
@@ -176,6 +180,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       voiceProfile: null,
       deepgramApiKey: "",
       transcriptHistory: [],
+      filterMode: "smart",
     });
     showNotification("🔄 Reset complete", "info");
     setTimeout(() => window.location.reload(), 1500);
@@ -186,6 +191,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     for (const [key, change] of Object.entries(changes)) {
       currentState[key] = change.newValue;
+    }
+
+    if (typeof changes.filterMode?.newValue !== "undefined") {
+      selectedMode = changes.filterMode.newValue || "smart";
     }
 
     syncUI();
@@ -283,6 +292,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       "hearlyEnrolled",
       "deepgramApiKey",
       "transcriptHistory",
+      "filterMode",
     ]);
 
     return {
@@ -290,6 +300,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       hearlyEnrolled: data.hearlyEnrolled || false,
       deepgramApiKey: data.deepgramApiKey || "",
       transcriptHistory: data.transcriptHistory || [],
+      filterMode: data.filterMode || "smart",
     };
   }
 

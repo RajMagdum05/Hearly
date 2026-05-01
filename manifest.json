@@ -13,7 +13,7 @@
     "offscreen"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://huggingface.co https://*.huggingface.co https://cdn.jsdelivr.net"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.deepgram.com wss://api.deepgram.com"
   },
 
   "host_permissions": [

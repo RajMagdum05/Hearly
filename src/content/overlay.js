@@ -15,6 +15,7 @@
     isActive: false,
     isEnrolled: false,
     voiceProfile: null,       // { mfccMeans: [], mfccStds: [] }
+    filterMode: "smart",
     audioContext: null,
     processorNode: null,
     sourceNode: null,
@@ -35,6 +36,7 @@
   const CHUNK_SIZE = 1024;
   const SAMPLE_RATE = 16000;
   const MATCH_THRESHOLD = 0.72;
+  const STRICT_MATCH_THRESHOLD = 0.84;
   const SILENCE_FLUSH_MS = 1200;
   const MIN_BG_AUDIO_MS = 400;
 
@@ -87,14 +89,8 @@
     startBtn.addEventListener("click", () => {
       if (State.isMeetingTranscribing) {
         window.postMessage({ hearlyMsg: true, type: "HEARLY_STOP_MEETING" }, "*");
-        State.isMeetingTranscribing = false;
-        startBtn.textContent = "Start Meeting Intelligence";
-        startBtn.classList.remove("hearly-active");
       } else {
         window.postMessage({ hearlyMsg: true, type: "HEARLY_START_MEETING" }, "*");
-        State.isMeetingTranscribing = true;
-        startBtn.textContent = "Stop Transcribing";
-        startBtn.classList.add("hearly-active");
       }
     });
 
@@ -169,6 +165,19 @@
     toast.textContent = message;
     toast.className = `hearly-toast-${type} hearly-toast-show`;
     setTimeout(() => toast.classList.remove("hearly-toast-show"), 3000);
+  }
+
+  function syncMeetingButton() {
+    const startBtn = document.getElementById("hearly-start-meeting-btn");
+    if (!startBtn) return;
+
+    if (State.isMeetingTranscribing) {
+      startBtn.textContent = "Stop Transcribing";
+      startBtn.classList.add("hearly-active");
+    } else {
+      startBtn.textContent = "Start Meeting Intelligence";
+      startBtn.classList.remove("hearly-active");
+    }
   }
 
   function updateBadge(status) {
@@ -463,6 +472,10 @@
     return Math.max(0, 1 - (distance / 4.0));
   }
 
+  function getCurrentMatchThreshold() {
+    return State.filterMode === "strict" ? STRICT_MATCH_THRESHOLD : MATCH_THRESHOLD;
+  }
+
   // ══════════════════════════════════════════
   //  AUDIO PIPELINE
   // ══════════════════════════════════════════
@@ -522,7 +535,7 @@
         return;
       }
       const sim = computeVoiceSimilarity(input, State.voiceProfile);
-      if (sim >= MATCH_THRESHOLD || getRMS(input) < 0.01) {
+      if (sim >= getCurrentMatchThreshold() || getRMS(input) < 0.01) {
         output.set(input);
       } else {
         output.fill(0);
@@ -685,6 +698,7 @@
     if (!State.processorNode?.port) return;
 
     State.processorNode.port.postMessage({ type: "SET_ACTIVE", data: State.isActive });
+    State.processorNode.port.postMessage({ type: "SET_THRESHOLD", data: getCurrentMatchThreshold() });
     if (State.voiceProfile) {
       State.processorNode.port.postMessage({ type: "SET_PROFILE", data: State.voiceProfile });
     }
@@ -725,6 +739,7 @@
         State.isActive = msg.data.hearlyActive;
         State.isEnrolled = msg.data.hearlyEnrolled;
         State.voiceProfile = msg.data.voiceProfile;
+        State.filterMode = msg.data.filterMode || "smart";
         syncProcessorState();
         updateBadge(State.isActive ? "active" : "inactive");
     } else if (msg.type === "HEARLY_TOGGLE") {
@@ -737,6 +752,20 @@
         }
         syncProcessorState();
         updateBadge(State.isActive ? "active" : "inactive");
+    } else if (msg.type === "HEARLY_FILTER_MODE_UPDATED") {
+        State.filterMode = msg.value || "smart";
+        syncProcessorState();
+    } else if (msg.type === "HEARLY_MEETING_CONTROL_RESULT") {
+        if (msg.action === "start") {
+          State.isMeetingTranscribing = Boolean(msg.ok);
+          if (!msg.ok) showToast(msg.error || "Could not start meeting transcription", "error");
+        } else if (msg.action === "stop") {
+          if (!msg.ok) {
+            showToast(msg.error || "Could not stop meeting transcription", "error");
+          }
+          State.isMeetingTranscribing = false;
+        }
+        syncMeetingButton();
     } else if (msg.type === "HEARLY_TRANSCRIPT_RESULT") {
         handleTranscriptResult(msg.text);
     } else if (msg.type === "HEARLY_PROFILE_UPDATED") {

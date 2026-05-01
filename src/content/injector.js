@@ -35,6 +35,7 @@
           "hearlyEnrolled",
           "voiceProfile",
           "deepgramApiKey",
+          "filterMode",
         ]);
         window.postMessage(
           { hearlyMsg: true, type: "HEARLY_STORAGE_DATA", data },
@@ -84,12 +85,32 @@
       }
 
       case "HEARLY_START_MEETING": {
-        chrome.runtime.sendMessage({ type: "START_MEETING_TRANSCRIPTION" });
+        const result = await chrome.runtime.sendMessage({ type: "START_MEETING_TRANSCRIPTION" });
+        window.postMessage(
+          {
+            hearlyMsg: true,
+            type: "HEARLY_MEETING_CONTROL_RESULT",
+            action: "start",
+            ok: Boolean(result?.ok),
+            error: result?.error || null,
+          },
+          "*"
+        );
         break;
       }
 
       case "HEARLY_STOP_MEETING": {
-        chrome.runtime.sendMessage({ type: "STOP_MEETING_TRANSCRIPTION" });
+        const result = await chrome.runtime.sendMessage({ type: "STOP_MEETING_TRANSCRIPTION" });
+        window.postMessage(
+          {
+            hearlyMsg: true,
+            type: "HEARLY_MEETING_CONTROL_RESULT",
+            action: "stop",
+            ok: Boolean(result?.ok),
+            error: result?.error || null,
+          },
+          "*"
+        );
         break;
       }
     }
@@ -120,6 +141,15 @@
           text: message.text,
           isFinal: message.isFinal,
           speaker: message.speaker
+        },
+        "*"
+      );
+    } else if (message.type === "HEARLY_FILTER_MODE_UPDATED") {
+      window.postMessage(
+        {
+          hearlyMsg: true,
+          type: "HEARLY_FILTER_MODE_UPDATED",
+          value: message.value,
         },
         "*"
       );
