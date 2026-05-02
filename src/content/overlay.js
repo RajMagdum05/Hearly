@@ -15,6 +15,7 @@
     isActive: false,
     isEnrolled: false,
     voiceProfile: null,       // { mfccMeans: [], mfccStds: [] }
+    deepgramApiKey: "",
     filterMode: "smart",
     audioContext: null,
     processorNode: null,
@@ -191,6 +192,10 @@
       enrolling: "Training...",
     };
     if (text) text.textContent = labels[status] || "Hearly";
+  }
+
+  function isFilteringEnabled() {
+    return State.isActive && State.filterMode !== "off";
   }
 
   // ══════════════════════════════════════════
@@ -530,7 +535,7 @@
     processor.onaudioprocess = (e) => {
       const input = e.inputBuffer.getChannelData(0);
       const output = e.outputBuffer.getChannelData(0);
-      if (!State.isActive || !State.isEnrolled || !State.voiceProfile) {
+      if (!isFilteringEnabled() || !State.isEnrolled || !State.voiceProfile) {
         output.set(input);
         return;
       }
@@ -573,6 +578,11 @@
   }
 
   function processBackgroundAudio(samples) {
+    if (!State.deepgramApiKey) {
+      showToast("Cloud transcription is unavailable. Add a Deepgram key to capture nearby transcript history.", "error");
+      return;
+    }
+
     const wav = floatArrayToWav(samples, SAMPLE_RATE);
     const base64 = arrayBufferToBase64(wav);
     State.transcriptionQueue.push(base64);
@@ -691,13 +701,14 @@
     }
 
     showTranscript(normalized);
+    window.postMessage({ hearlyMsg: true, type: "HEARLY_SAVE_TRANSCRIPT", text: normalized }, "*");
     drainTranscriptionQueue();
   }
 
   function syncProcessorState() {
     if (!State.processorNode?.port) return;
 
-    State.processorNode.port.postMessage({ type: "SET_ACTIVE", data: State.isActive });
+    State.processorNode.port.postMessage({ type: "SET_ACTIVE", data: isFilteringEnabled() });
     State.processorNode.port.postMessage({ type: "SET_THRESHOLD", data: getCurrentMatchThreshold() });
     if (State.voiceProfile) {
       State.processorNode.port.postMessage({ type: "SET_PROFILE", data: State.voiceProfile });
@@ -739,9 +750,10 @@
         State.isActive = msg.data.hearlyActive;
         State.isEnrolled = msg.data.hearlyEnrolled;
         State.voiceProfile = msg.data.voiceProfile;
+        State.deepgramApiKey = msg.data.deepgramApiKey || "";
         State.filterMode = msg.data.filterMode || "smart";
         syncProcessorState();
-        updateBadge(State.isActive ? "active" : "inactive");
+        updateBadge(isFilteringEnabled() ? "active" : "inactive");
     } else if (msg.type === "HEARLY_TOGGLE") {
         State.isActive = msg.value;
         if (!State.isActive) {
@@ -751,10 +763,15 @@
           clearTimeout(State.backgroundSilenceTimer);
         }
         syncProcessorState();
-        updateBadge(State.isActive ? "active" : "inactive");
+        updateBadge(isFilteringEnabled() ? "active" : "inactive");
     } else if (msg.type === "HEARLY_FILTER_MODE_UPDATED") {
         State.filterMode = msg.value || "smart";
         syncProcessorState();
+        updateBadge(isFilteringEnabled() ? "active" : "inactive");
+    } else if (msg.type === "HEARLY_API_KEY_UPDATED") {
+        State.deepgramApiKey = msg.value || "";
+        State.transcriptionQueue = [];
+        State.isTranscribing = false;
     } else if (msg.type === "HEARLY_MEETING_CONTROL_RESULT") {
         if (msg.action === "start") {
           State.isMeetingTranscribing = Boolean(msg.ok);
@@ -773,6 +790,22 @@
         State.isEnrolled = true;
         syncProcessorState();
         showToast("Voice profile updated", "success");
+    } else if (msg.type === "HEARLY_RESET") {
+        State.isActive = false;
+        State.isEnrolled = false;
+        State.voiceProfile = null;
+        State.deepgramApiKey = "";
+        State.filterMode = "smart";
+        State.backgroundBuffer = [];
+        State.transcriptionQueue = [];
+        State.isTranscribing = false;
+        State.isMeetingTranscribing = false;
+        clearTimeout(State.backgroundSilenceTimer);
+        syncProcessorState();
+        syncMeetingButton();
+        updateBadge("inactive");
+        const content = document.getElementById("hearly-transcript-content");
+        if (content) content.innerHTML = "";
     } else if (msg.type === "HEARLY_ENROLL") {
         enrollVoice();
     } else if (msg.type === "HEARLY_MEETING_TRANSCRIPT") {

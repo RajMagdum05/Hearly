@@ -953,7 +953,7 @@
         <div class="settings-top">
           <div>
             <div class="settings-title">Settings & Setup</div>
-            <div class="settings-subtitle">Manage voice training, your Deepgram key, and private history.</div>
+            <div class="settings-subtitle">Manage voice training, optional cloud transcription, and private history.</div>
           </div>
           <button class="mini-button" id="close-settings-btn" type="button">Close</button>
         </div>
@@ -973,18 +973,18 @@
 
         <div class="api-card">
           <div class="api-copy">
-            <div class="api-title">Deepgram API Key</div>
-            <div class="api-desc">Save your key once to turn muted nearby speech into private transcripts.</div>
+            <div class="api-title">Optional Cloud Transcription</div>
+            <div class="api-desc">Add a Deepgram key only if you want cloud-powered transcripts. Voice filtering works without it.</div>
           </div>
           <div class="field">
             <div class="field-label-row">
-              <label class="field-label" for="api-key-input">API Key</label>
+              <label class="field-label" for="api-key-input">Deepgram Key</label>
               <a class="api-link" href="https://deepgram.com" target="_blank" rel="noreferrer">Get key</a>
             </div>
-            <input type="password" id="api-key-input" placeholder="Paste your Deepgram API key" autocomplete="off" />
+            <input type="password" id="api-key-input" placeholder="Leave blank to keep cloud transcription off" autocomplete="off" />
           </div>
           <div class="button-row">
-            <button class="primary-button" id="save-key-btn" type="button">Save Key</button>
+            <button class="primary-button" id="save-key-btn" type="button">Save</button>
             <button class="secondary-button" id="show-key-btn" type="button">Show</button>
           </div>
         </div>

@@ -61,18 +61,14 @@
           },
           "*"
         );
+        break;
+      }
 
-        // Save to history
-        if (
-          result.text &&
-          !result.text.startsWith("⚠️") &&
-          !result.text.startsWith("❌")
-        ) {
-          chrome.runtime.sendMessage({
-            type: "SAVE_TRANSCRIPT",
-            text: result.text,
-          });
-        }
+      case "HEARLY_SAVE_TRANSCRIPT": {
+        await chrome.runtime.sendMessage({
+          type: "SAVE_TRANSCRIPT",
+          text: msg.text,
+        });
         break;
       }
 
@@ -150,6 +146,23 @@
           hearlyMsg: true,
           type: "HEARLY_FILTER_MODE_UPDATED",
           value: message.value,
+        },
+        "*"
+      );
+    } else if (message.type === "HEARLY_API_KEY_UPDATED") {
+      window.postMessage(
+        {
+          hearlyMsg: true,
+          type: "HEARLY_API_KEY_UPDATED",
+          value: message.value,
+        },
+        "*"
+      );
+    } else if (message.type === "HEARLY_RESET") {
+      window.postMessage(
+        {
+          hearlyMsg: true,
+          type: "HEARLY_RESET",
         },
         "*"
       );

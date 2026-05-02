@@ -3,6 +3,11 @@
 // ─────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const hasExtensionApi =
+    typeof chrome !== "undefined" &&
+    Boolean(chrome.runtime?.id) &&
+    Boolean(chrome.storage?.local);
+
   const SUPPORTED_HOSTS = [
     "meet.google.com",
     "zoom.us",
@@ -47,31 +52,39 @@ document.addEventListener("DOMContentLoaded", async () => {
     filterMode: "smart",
   };
   let selectedMode = "smart";
+  let onMeeting = false;
 
   // ── Load stored state ─────────────────────
-  currentState = await loadState();
-  mainToggle.checked = currentState.hearlyActive;
-  apiKeyInput.value  = currentState.deepgramApiKey;
-  selectedMode = currentState.filterMode || "smart";
+  if (hasExtensionApi) {
+    currentState = await loadState();
+    mainToggle.checked = currentState.hearlyActive;
+    apiKeyInput.value  = currentState.deepgramApiKey;
+    selectedMode = currentState.filterMode || "smart";
 
-  // ── Check if on meeting page ───────────────
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const onMeeting = isSupportedMeetingUrl(tab?.url);
+    // ── Check if on meeting page ───────────────
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    onMeeting = isSupportedMeetingUrl(tab?.url);
 
-  if (!onMeeting) {
+    if (!onMeeting) {
+      notOnMeeting.style.display = "block";
+      statusCard.style.opacity = "0.7";
+    }
+  } else {
     notOnMeeting.style.display = "block";
+    notOnMeeting.textContent = "Preview mode only. Load this as a Chrome extension on a supported meeting tab to use Hearly.";
     statusCard.style.opacity = "0.7";
   }
 
   syncUI();
 
-  const modeBadge = document.createElement("div");
-  modeBadge.style.cssText = "font-size: 10px; opacity: 0.6; margin-top: 5px; text-align: center;";
-  modeBadge.textContent = currentState.deepgramApiKey ? "🚀 Cloud Mode Active" : "";
-  statusCard.appendChild(modeBadge);
-
   // ── Toggle Hearly on/off ───────────────────
   mainToggle.addEventListener("change", async () => {
+    if (!hasExtensionApi) {
+      mainToggle.checked = false;
+      showNotification("Preview mode only. Load the extension in Chrome to use live filtering.", "info");
+      return;
+    }
+
     const value = mainToggle.checked;
     await chrome.runtime.sendMessage({ type: "SET_ACTIVE", value });
     currentState.hearlyActive = value;
@@ -83,6 +96,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   enrollBtn.addEventListener("click", async () => {
+    if (!hasExtensionApi) {
+      showNotification("Preview mode only. Voice training starts from the installed extension popup.", "info");
+      return;
+    }
+
     // Trigger enrollment in the active tab
     try {
       const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -131,12 +149,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Save API key ───────────────────────────
   saveKeyBtn.addEventListener("click", async () => {
     const key = apiKeyInput.value.trim();
-    if (!key) {
-      showNotification("Please enter your Deepgram API key", "error");
+    if (!hasExtensionApi) {
+      currentState.deepgramApiKey = key;
+      showNotification("Preview mode only. This does not save outside the installed extension.", "info");
       return;
     }
+
     await chrome.runtime.sendMessage({ type: "SET_API_KEY", key });
-    showNotification("🔑 API key saved! (Switching to High-Accuracy Cloud Mode)", "success");
+    currentState.deepgramApiKey = key;
+    showNotification(
+      key
+        ? "🔑 Cloud transcription key saved."
+        : "Cloud transcription key cleared. Filtering still works without it.",
+      "success"
+    );
   });
 
   // ── Show/hide API key ──────────────────────
@@ -163,9 +189,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       selectedMode = button.dataset.mode || "smart";
       currentState.filterMode = selectedMode;
       syncModeButtons();
-      await chrome.runtime.sendMessage({ type: "SET_FILTER_MODE", value: selectedMode });
-      if (selectedMode === "off" && currentState.hearlyActive) {
-        mainToggle.click();
+      if (hasExtensionApi) {
+        await chrome.runtime.sendMessage({ type: "SET_FILTER_MODE", value: selectedMode });
       }
     });
   });
@@ -173,37 +198,39 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Reset everything ───────────────────────
   resetBtn.addEventListener("click", async () => {
     if (!confirm("Reset all Hearly data including voice profile?")) return;
-    await chrome.storage.local.clear();
-    await chrome.storage.local.set({
-      hearlyActive: false,
-      hearlyEnrolled: false,
-      voiceProfile: null,
-      deepgramApiKey: "",
-      transcriptHistory: [],
-      filterMode: "smart",
-    });
+    if (!hasExtensionApi) {
+      showNotification("Preview mode only. Nothing was reset outside this page.", "info");
+      return;
+    }
+    const result = await chrome.runtime.sendMessage({ type: "RESET_HEARLY_STATE" });
+    if (!result?.ok) {
+      showNotification(`❌ Reset failed: ${result?.error || "Unknown error"}`, "error");
+      return;
+    }
     showNotification("🔄 Reset complete", "info");
     setTimeout(() => window.location.reload(), 1500);
   });
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local") return;
+  if (hasExtensionApi) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local") return;
 
-    for (const [key, change] of Object.entries(changes)) {
-      currentState[key] = change.newValue;
-    }
+      for (const [key, change] of Object.entries(changes)) {
+        currentState[key] = change.newValue;
+      }
 
-    if (typeof changes.filterMode?.newValue !== "undefined") {
-      selectedMode = changes.filterMode.newValue || "smart";
-    }
+      if (typeof changes.filterMode?.newValue !== "undefined") {
+        selectedMode = changes.filterMode.newValue || "smart";
+      }
 
-    syncUI();
-  });
+      syncUI();
+    });
 
-  window.addEventListener("focus", async () => {
-    currentState = await loadState();
-    syncUI();
-  });
+    window.addEventListener("focus", async () => {
+      currentState = await loadState();
+      syncUI();
+    });
+  }
 
   // ═══════════════════════════════════════════
   //  HELPER FUNCTIONS
@@ -227,17 +254,23 @@ document.addEventListener("DOMContentLoaded", async () => {
       heroCheckText.textContent = "Filtering background voices";
       micQuality.textContent = selectedMode === "strict" ? "Strict" : "Good";
       toggleCopy.textContent = "Pause Filtering";
-      mainToggle.disabled = !onMeeting;
+      mainToggle.disabled = !onMeeting || !hasExtensionApi;
     } else {
       statusDot.textContent = selectedMode === "off" ? "Paused" : "Ready";
       statusLabel.textContent = selectedMode === "off" ? "Filtering Off" : "Ready to Filter";
-      statusSublabel.textContent = onMeeting
-        ? "Turn filtering on whenever you want Hearly to protect the meeting from nearby voices."
-        : "Join a supported meeting to start live filtering.";
-      heroCheckText.textContent = onMeeting ? "Protection ready when you are" : "Open a supported meeting tab";
-      micQuality.textContent = onMeeting ? "Standby" : "Unavailable";
-      toggleCopy.textContent = onMeeting ? "Enable Filtering" : "Meeting Required";
-      mainToggle.disabled = !onMeeting;
+      statusSublabel.textContent = !hasExtensionApi
+        ? "This file is a UI preview. Install the extension in Chrome for live behavior."
+        : onMeeting
+          ? "Turn filtering on whenever you want Hearly to protect the meeting from nearby voices."
+          : "Join a supported meeting to start live filtering.";
+      heroCheckText.textContent = !hasExtensionApi
+        ? "Preview only"
+        : onMeeting
+          ? "Protection ready when you are"
+          : "Open a supported meeting tab";
+      micQuality.textContent = !hasExtensionApi ? "Preview" : onMeeting ? "Standby" : "Unavailable";
+      toggleCopy.textContent = !hasExtensionApi ? "Preview Only" : onMeeting ? "Enable Filtering" : "Meeting Required";
+      mainToggle.disabled = !onMeeting || !hasExtensionApi;
     }
   }
 
@@ -305,7 +338,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function syncUI() {
-    mainToggle.checked = Boolean(currentState.hearlyActive);
+    mainToggle.checked = Boolean(currentState.hearlyActive) && selectedMode !== "off" && hasExtensionApi;
     if (document.activeElement !== apiKeyInput) {
       apiKeyInput.value = currentState.deepgramApiKey || "";
     }

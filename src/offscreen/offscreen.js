@@ -27,7 +27,8 @@ async function startCapture(streamId, apiKey) {
   }
 
   if (!apiKey) {
-    throw new Error("Deepgram API key is required for meeting transcription.");
+    console.info("[Hearly-Offscreen] Cloud meeting transcription skipped because no API key is configured.");
+    return;
   }
 
   try {

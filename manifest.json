@@ -21,7 +21,8 @@
     "https://*.zoom.us/*",
     "https://teams.microsoft.com/*",
     "http://localhost/*",
-    "https://api.deepgram.com/*"
+    "https://api.deepgram.com/*",
+    "file:///*"
   ],
 
   "background": {
