@@ -1,24 +1,35 @@
-// ─────────────────────────────────────────────
-//  Hearly — Background Service Worker
-//  Manages state, STT API calls, tab messaging
-// ─────────────────────────────────────────────
-
-const CONFIGURED_DEEPGRAM_API_KEY = "c8737059b2488d3ef85c670e71b91f8105b62424";
-
-const DEFAULT_STORAGE = {
+const DEFAULT_LOCAL_STORAGE = {
   hearlyActive: false,
   hearlyEnrolled: false,
   voiceProfile: null,
-  deepgramApiKey: CONFIGURED_DEEPGRAM_API_KEY,
-  transcriptHistory: [],
-  filterMode: "smart",
+  trainedAt: null,
+  transcripts: [],
 };
 
-let meetingSessionTabId = null;
+const DEFAULT_SYNC_STORAGE = {
+  language: "en-US",
+  notifyOnVoice: true,
+  chimeOnFilter: false,
+  deepgramApiKey: "",
+};
 
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   await ensureDefaultStorage();
-  console.log("[Hearly] Extension installed.");
+
+  if (details.reason === "install") {
+    await chrome.storage.sync.set({
+      language: "en-US",
+      notifyOnVoice: true,
+      chimeOnFilter: false,
+    });
+    await chrome.storage.local.set({
+      transcripts: [],
+      voiceProfile: null,
+      hearlyEnrolled: false,
+      hearlyActive: false,
+    });
+    chrome.runtime.openOptionsPage();
+  }
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -27,124 +38,109 @@ chrome.runtime.onStartup.addListener(() => {
   });
 });
 
-// ── Message Router ────────────────────────────
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
-
     case "GET_STATE":
       chrome.storage.local.get(
-        ["hearlyActive", "hearlyEnrolled", "deepgramApiKey", "filterMode"],
-        (data) => sendResponse({
-          ...data,
-          deepgramApiKey: resolveConfiguredApiKey(data.deepgramApiKey),
-        })
+        ["hearlyActive", "hearlyEnrolled", "voiceProfile", "trainedAt"],
+        (local) => sendResponse(local)
       );
       return true;
 
+    case "GET_SETTINGS":
+      chrome.storage.sync.get(DEFAULT_SYNC_STORAGE, (settings) => {
+        sendResponse(settings);
+      });
+      return true;
+
     case "SET_ACTIVE":
-      chrome.storage.local.set({ hearlyActive: message.value });
-      broadcastToMeetingTabs({ type: "HEARLY_TOGGLE", value: message.value });
+      chrome.storage.local.set({ hearlyActive: Boolean(message.value) });
+      broadcastToMeetingTabs({ type: "HEARLY_TOGGLE", value: Boolean(message.value) });
+      if (message.value) startMeetingTranscription(sender.tab?.id).catch(console.error);
+      else stopMeetingTranscription().catch(console.error);
       sendResponse({ ok: true });
       return true;
 
-    case "SET_FILTER_MODE":
-      chrome.storage.local.set({ filterMode: message.value });
-      broadcastToMeetingTabs({ type: "HEARLY_FILTER_MODE_UPDATED", value: message.value });
-      sendResponse({ ok: true });
-      return true;
-
-    case "VOICE_ENROLLED":
+    case "VOICE_ENROLLED": {
+      const trainedAt = new Date().toISOString();
       chrome.storage.local.set({
         hearlyEnrolled: true,
         voiceProfile: message.profile,
+        trainedAt,
       });
       broadcastToMeetingTabs({ type: "HEARLY_PROFILE_UPDATED", profile: message.profile });
       sendResponse({ ok: true });
       return true;
+    }
 
-    case "TRANSCRIBE_AUDIO":
-      // Background person's audio chunks sent here for STT
-      handleTranscription(message.audioBase64, message.apiKey)
-        .then((text) => sendResponse({ ok: true, text }))
+    case "SAVE_TRANSCRIPT":
+      appendTranscript(message.data || message)
+        .then(() => sendResponse({ ok: true }))
         .catch((err) => sendResponse({ ok: false, error: err.message }));
       return true;
 
-    case "SAVE_TRANSCRIPT":
-      saveTranscript(message.text);
-      sendResponse({ ok: true });
+    case "VOICE_DETECTED":
+      handleVoiceDetected()
+        .then(() => sendResponse({ ok: true }))
+        .catch((err) => sendResponse({ ok: false, error: err.message }));
       return true;
 
     case "GET_API_KEY":
-      chrome.storage.local.get("deepgramApiKey", (d) =>
-        sendResponse({ key: resolveConfiguredApiKey(d.deepgramApiKey) })
-      );
+      chrome.storage.sync.get("deepgramApiKey", (data) => {
+        sendResponse({ key: data.deepgramApiKey || "" });
+      });
       return true;
 
     case "SET_API_KEY":
-      chrome.storage.local.set({ deepgramApiKey: message.key });
-      broadcastToMeetingTabs({ type: "HEARLY_API_KEY_UPDATED", value: message.key || "" });
+      chrome.storage.sync.set({ deepgramApiKey: message.key || "" });
       sendResponse({ ok: true });
       return true;
 
     case "START_MEETING_TRANSCRIPTION":
-      startMeetingTranscription(sender.tab.id)
+      startMeetingTranscription(sender.tab?.id)
         .then(() => sendResponse({ ok: true }))
         .catch((err) => sendResponse({ ok: false, error: err.message }));
       return true;
 
     case "STOP_MEETING_TRANSCRIPTION":
-      stopMeetingTranscription(sender.tab?.id)
+      stopMeetingTranscription()
         .then(() => sendResponse({ ok: true }))
         .catch((err) => sendResponse({ ok: false, error: err.message }));
       return true;
 
-    case "MEETING_TRANSCRIPT":
-      relayMeetingTranscript(message);
+    case "TRANSCRIPT":
+      handleTranscriptMessage(message);
+      sendResponse({ ok: true });
       return true;
 
-    case "RESET_HEARLY_STATE":
-      resetHearlyState()
-        .then(() => sendResponse({ ok: true }))
-        .catch((err) => sendResponse({ ok: false, error: err.message }));
+    case "DEEPGRAM_ERROR":
+      broadcastToMeetingTabs({ type: "DEEPGRAM_ERROR", reason: message.reason || "Deepgram connection error" });
+      sendResponse({ ok: true });
+      return true;
+
+    case "TRANSCRIBE_AUDIO":
+      sendResponse({ ok: true, text: "" });
       return true;
   }
 });
 
-// ── Meeting Transcription Management ──────────
 async function startMeetingTranscription(tabId) {
-  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
-  const { deepgramApiKey } = await chrome.storage.local.get("deepgramApiKey");
-  const resolvedApiKey = resolveConfiguredApiKey(deepgramApiKey);
-
-  if (meetingSessionTabId && meetingSessionTabId !== tabId) {
-    throw new Error("Meeting transcription is already running in another tab.");
-  }
-
-  if (!resolvedApiKey) {
-    throw new Error("Cloud transcription is off. Filtering still works without a key.");
-  }
-
   await ensureOffscreenDocument();
-  meetingSessionTabId = tabId;
 
   chrome.runtime.sendMessage({
-    type: "START_TAB_RECORDING",
     target: "offscreen",
-    data: { streamId, apiKey: resolvedApiKey }
+    type: "START_TRANSCRIPTION",
+    data: { tabId: tabId || null },
   });
 }
 
-async function stopMeetingTranscription(tabId) {
-  if (meetingSessionTabId && tabId && meetingSessionTabId !== tabId) {
-    throw new Error("Meeting transcription belongs to another tab.");
-  }
+async function stopMeetingTranscription() {
+  if (!(await chrome.offscreen.hasDocument())) return;
 
   chrome.runtime.sendMessage({
-    type: "STOP_TAB_RECORDING",
-    target: "offscreen"
+    target: "offscreen",
+    type: "STOP_TRANSCRIPTION",
   });
-  meetingSessionTabId = null;
-  await closeOffscreenDocument();
 }
 
 async function ensureOffscreenDocument() {
@@ -153,139 +149,87 @@ async function ensureOffscreenDocument() {
   await chrome.offscreen.createDocument({
     url: "src/offscreen/offscreen.html",
     reasons: ["USER_MEDIA"],
-    justification: "Capturing tab audio for meeting transcription."
+    justification: "Capturing microphone audio for private Deepgram transcription.",
   });
 }
 
-async function closeOffscreenDocument() {
-  if (!(await chrome.offscreen.hasDocument())) return;
-  await chrome.offscreen.closeDocument();
-  meetingSessionTabId = null;
-}
+function handleTranscriptMessage(message) {
+  const text = String(message.text || "").trim();
+  if (!text) return;
 
-// ── Transcription via Deepgram REST ───────────
-async function handleTranscription(audioBase64, apiKey) {
-  const resolvedApiKey = resolveConfiguredApiKey(apiKey);
-  if (!resolvedApiKey) {
-    return "";
-  }
+  broadcastToMeetingTabs({
+    type: "TRANSCRIPT",
+    text,
+    isFinal: Boolean(message.isFinal),
+  });
 
-  try {
-    // Convert base64 → binary
-    const binaryStr = atob(audioBase64);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
-
-    const response = await fetch(
-      "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=en",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${resolvedApiKey}`,
-          "Content-Type": "audio/wav",
-        },
-        body: bytes.buffer,
-      }
-    );
-
-    if (!response.ok) {
-      if (response.status === 401) return "❌ [Invalid Deepgram API Key]";
-      throw new Error(`Deepgram error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const transcript =
-      data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || "";
-    
-    const result = transcript.trim();
-    if (result) console.log("[Hearly] Transcription successful:", result);
-    return result;
-    
-  } catch (err) {
-    console.error("[Hearly] Transcription error:", err);
-    return `❌ [Transcription Error: ${err.message}]`;
-  }
-}
-
-// ── Save transcript to history ─────────────────
-function saveTranscript(text) {
-  if (
-    !text ||
-    /^\s*$/.test(text) ||
-    text.startsWith("⚠️") ||
-    text.startsWith("❌")
-  ) {
-    return;
-  }
-
-  chrome.storage.local.get("transcriptHistory", (data) => {
-    const history = data.transcriptHistory || [];
-    history.push({
+  if (message.isFinal) {
+    appendTranscript({
       text,
-      timestamp: new Date().toISOString(),
-    });
-    // Keep last 100 entries
-    if (history.length > 100) history.shift();
-    chrome.storage.local.set({ transcriptHistory: history });
+      speaker: "nearby",
+      duration: Number(message.duration || 0),
+    }).catch((err) => console.error("[Hearly] Failed to save transcript:", err));
+  }
+}
+
+async function appendTranscript(data) {
+  const text = String(data.text || "").trim();
+  if (!text) return;
+
+  const transcript = {
+    id: data.id || crypto.randomUUID(),
+    text,
+    speaker: data.speaker === "filtered" ? "filtered" : "nearby",
+    timestamp: data.timestamp || new Date().toISOString(),
+    duration: Number(data.duration || 0),
+  };
+
+  const stored = await chrome.storage.local.get("transcripts");
+  const transcripts = Array.isArray(stored.transcripts) ? stored.transcripts : [];
+  transcripts.push(transcript);
+  await chrome.storage.local.set({ transcripts });
+}
+
+async function handleVoiceDetected() {
+  const settings = await chrome.storage.sync.get(DEFAULT_SYNC_STORAGE);
+  if (!settings.notifyOnVoice) return;
+
+  chrome.notifications.create({
+    type: "basic",
+    iconUrl: "assets/icons/icon128.png",
+    title: "Hearly",
+    message: "Nearby voice detected and filtered",
   });
 }
 
-function relayMeetingTranscript(message) {
-  if (!meetingSessionTabId) return;
-
-  chrome.tabs.sendMessage(meetingSessionTabId, {
-    type: "HEARLY_MEETING_TRANSCRIPT",
-    text: message.text,
-    isFinal: message.isFinal,
-    speaker: message.speaker,
-  }).catch(() => {});
-}
-
-async function resetHearlyState() {
-  await stopMeetingTranscription();
-  await chrome.storage.local.clear();
-  await chrome.storage.local.set({
-    ...DEFAULT_STORAGE,
-    transcriptHistory: [],
-  });
-
-  broadcastToMeetingTabs({ type: "HEARLY_RESET" });
-}
-
-// ── Broadcast to all meeting tabs ─────────────
 function broadcastToMeetingTabs(message) {
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach((tab) => {
-      if (isSupportedTabUrl(tab.url)) {
-        chrome.tabs.sendMessage(tab.id, message).catch(() => {});
-      }
+      if (!tab.id || !isSupportedTabUrl(tab.url)) return;
+      chrome.tabs.sendMessage(tab.id, message).catch(() => {});
     });
   });
 }
 
 async function ensureDefaultStorage() {
-  const existing = await chrome.storage.local.get(Object.keys(DEFAULT_STORAGE));
-  const patch = {};
+  const [local, sync] = await Promise.all([
+    chrome.storage.local.get(Object.keys(DEFAULT_LOCAL_STORAGE)),
+    chrome.storage.sync.get(Object.keys(DEFAULT_SYNC_STORAGE)),
+  ]);
 
-  for (const [key, value] of Object.entries(DEFAULT_STORAGE)) {
-    if (typeof existing[key] === "undefined") {
-      patch[key] = value;
-    }
+  const localPatch = {};
+  const syncPatch = {};
+
+  for (const [key, value] of Object.entries(DEFAULT_LOCAL_STORAGE)) {
+    if (typeof local[key] === "undefined") localPatch[key] = value;
   }
 
-  if (!existing.deepgramApiKey) {
-    patch.deepgramApiKey = CONFIGURED_DEEPGRAM_API_KEY;
+  for (const [key, value] of Object.entries(DEFAULT_SYNC_STORAGE)) {
+    if (typeof sync[key] === "undefined") syncPatch[key] = value;
   }
 
-  if (Object.keys(patch).length) {
-    await chrome.storage.local.set(patch);
-  }
-}
-
-function resolveConfiguredApiKey(value) {
-  return value || CONFIGURED_DEEPGRAM_API_KEY || "";
+  if (Object.keys(localPatch).length) await chrome.storage.local.set(localPatch);
+  if (Object.keys(syncPatch).length) await chrome.storage.sync.set(syncPatch);
 }
 
 function isSupportedTabUrl(url) {

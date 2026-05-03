@@ -4,775 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hearly</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-
-    :root {
-      --bg: #05070b;
-      --surface: #0b0f14;
-      --surface-2: #0d1218;
-      --surface-3: #10161d;
-      --line: rgba(255, 255, 255, 0.08);
-      --line-strong: rgba(255, 255, 255, 0.12);
-      --text: #f5f7fa;
-      --muted: #9aa3ad;
-      --green: #2ef06d;
-      --green-strong: #22d65c;
-      --green-soft: rgba(46, 240, 109, 0.14);
-      --green-glow: rgba(46, 240, 109, 0.3);
-      --violet: #7f6bff;
-      --yellow: #ffca42;
-      --danger: #ff5f6d;
-      --shadow: 0 24px 70px rgba(0, 0, 0, 0.52);
-    }
-
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      background:
-        radial-gradient(circle at top left, rgba(50, 62, 76, 0.32), transparent 32%),
-        linear-gradient(180deg, #1a1d23 0%, #12151b 100%);
-      color: var(--text);
-      font-family: "Manrope", sans-serif;
-    }
-
-    body {
-      width: 414px;
-      padding: 18px;
-    }
-
-    button, input {
-      font: inherit;
-    }
-
-    .app-shell {
-      position: relative;
-      overflow: hidden;
-      border-radius: 28px;
-      background:
-        radial-gradient(circle at top left, rgba(46, 240, 109, 0.08), transparent 24%),
-        radial-gradient(circle at bottom right, rgba(127, 107, 255, 0.06), transparent 28%),
-        linear-gradient(180deg, #04060a 0%, #080b10 100%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: var(--shadow);
-    }
-
-    .app-shell::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background:
-        radial-gradient(circle at 20% 20%, rgba(46, 240, 109, 0.08), transparent 18%),
-        radial-gradient(circle at 82% 38%, rgba(46, 240, 109, 0.06), transparent 20%);
-    }
-
-    .content {
-      position: relative;
-      z-index: 1;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .header,
-    .hero,
-    .panel,
-    .stats-grid article,
-    .cta-button,
-    .pause-button,
-    .settings-panel,
-    .meeting-notice {
-      border: 1px solid var(--line);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 2px 0 8px;
-      border: 0;
-      box-shadow: none;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .brand-mark {
-      width: 34px;
-      height: 34px;
-      color: var(--green);
-      filter: drop-shadow(0 0 14px rgba(46, 240, 109, 0.32));
-    }
-
-    .brand-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .brand-title {
-      font-family: "Sora", sans-serif;
-      font-size: 19px;
-      font-weight: 700;
-      letter-spacing: -0.04em;
-    }
-
-    .pro-pill {
-      padding: 5px 11px;
-      border-radius: 999px;
-      color: var(--green);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-      background: linear-gradient(180deg, rgba(46, 240, 109, 0.18), rgba(46, 240, 109, 0.08));
-      border: 1px solid rgba(46, 240, 109, 0.18);
-      box-shadow: inset 0 0 0 1px rgba(46, 240, 109, 0.04);
-    }
-
-    .settings-button {
-      width: 52px;
-      height: 52px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-      display: grid;
-      place-items: center;
-      color: #d8dde4;
-      cursor: pointer;
-      transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
-    }
-
-    .settings-button:hover {
-      transform: translateY(-1px);
-      border-color: rgba(46, 240, 109, 0.32);
-      background: rgba(46, 240, 109, 0.05);
-    }
-
-    .settings-button svg {
-      width: 23px;
-      height: 23px;
-    }
-
-    .hero {
-      position: relative;
-      display: grid;
-      grid-template-columns: 170px 1fr;
-      gap: 20px;
-      padding: 18px;
-      border-radius: 24px;
-      background: linear-gradient(180deg, #0a0f14 0%, #090d12 100%);
-      overflow: hidden;
-    }
-
-    .hero::after {
-      content: "";
-      position: absolute;
-      width: 260px;
-      height: 260px;
-      right: -120px;
-      top: 10px;
-      border-radius: 50%;
-      background:
-        repeating-radial-gradient(circle, rgba(46, 240, 109, 0.08) 0 2px, transparent 2px 18px);
-      opacity: 0.35;
-      pointer-events: none;
-    }
-
-    .hero-left {
-      display: grid;
-      place-items: center;
-    }
-
-    .signal-ring {
-      position: relative;
-      width: 160px;
-      height: 160px;
-      border-radius: 50%;
-      border: 7px solid var(--green);
-      display: grid;
-      place-items: center;
-      box-shadow: 0 0 0 1px rgba(46, 240, 109, 0.15), 0 0 36px rgba(46, 240, 109, 0.24);
-    }
-
-    .signal-ring::before {
-      content: "";
-      position: absolute;
-      inset: 20px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(46, 240, 109, 0.2), rgba(46, 240, 109, 0.02) 62%, transparent 72%);
-    }
-
-    .signal-ring::after {
-      content: "";
-      position: absolute;
-      top: 16px;
-      right: 22px;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: #d5ffe4;
-      box-shadow: 0 0 0 4px rgba(46, 240, 109, 0.36), 0 0 18px rgba(46, 240, 109, 0.62);
-    }
-
-    .signal-ring svg {
-      position: relative;
-      z-index: 1;
-      width: 58px;
-      height: 58px;
-      color: var(--green);
-      filter: drop-shadow(0 0 14px rgba(46, 240, 109, 0.32));
-    }
-
-    .hero-copy {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    .hero-status {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--green);
-    }
-
-    .hero-title {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      line-height: 1;
-    }
-
-    .hero-subtitle {
-      color: #b4bcc5;
-      font-size: 12px;
-      line-height: 1.5;
-      max-width: 220px;
-    }
-
-    .hero-check {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .hero-check svg {
-      width: 20px;
-      height: 20px;
-      color: var(--green);
-      flex: 0 0 auto;
-    }
-
-    .meeting-notice {
-      display: none;
-      padding: 12px 14px;
-      border-radius: 18px;
-      background: rgba(255, 196, 0, 0.08);
-      color: #ffd86f;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .notification {
-      display: none;
-      padding: 12px 14px;
-      border-radius: 18px;
-      font-size: 12px;
-      font-weight: 700;
-      line-height: 1.45;
-      background: rgba(46, 240, 109, 0.12);
-      border: 1px solid rgba(46, 240, 109, 0.24);
-      color: #dfffe8;
-    }
-
-    .notification.visible {
-      display: block;
-    }
-
-    .notification.error {
-      background: rgba(255, 95, 109, 0.12);
-      border-color: rgba(255, 95, 109, 0.26);
-      color: #ffd8dc;
-    }
-
-    .notification.info {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.1);
-      color: #eef2f7;
-    }
-
-    .panel {
-      border-radius: 22px;
-      background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
-      padding: 18px;
-    }
-
-    .panel-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 14px;
-    }
-
-    .panel-title {
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.01em;
-    }
-
-    .mic-grade {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--green);
-      font-size: 12px;
-      font-weight: 800;
-    }
-
-    .mic-grade::after {
-      content: "";
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: currentColor;
-      box-shadow: 0 0 16px currentColor;
-    }
-
-    .mic-wave {
-      display: flex;
-      align-items: flex-end;
-      gap: 5px;
-      height: 44px;
-      overflow: hidden;
-    }
-
-    .mic-wave span {
-      width: 6px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.12);
-      transform-origin: center bottom;
-      animation: pulse 1.4s ease-in-out infinite;
-    }
-
-    .mic-wave span.active {
-      background: linear-gradient(180deg, #65ff91, #1fdb5c);
-      box-shadow: 0 0 10px rgba(46, 240, 109, 0.34);
-    }
-
-    .mic-wave span.focus {
-      width: 7px;
-      background: linear-gradient(180deg, #7bff9e, #26e364);
-      box-shadow: 0 0 14px rgba(46, 240, 109, 0.5);
-    }
-
-    .mode-segment {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      padding: 6px;
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .mode-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      min-height: 52px;
-      border: 0;
-      border-radius: 16px;
-      background: transparent;
-      color: #7f8791;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background 160ms ease, color 160ms ease, transform 160ms ease;
-    }
-
-    .mode-button:hover {
-      color: #dce2e8;
-      transform: translateY(-1px);
-    }
-
-    .mode-button.active {
-      color: #021108;
-      background: linear-gradient(180deg, #3bf06d, #28d95d);
-      box-shadow: 0 12px 24px rgba(46, 240, 109, 0.24);
-    }
-
-    .mode-button svg {
-      width: 18px;
-      height: 18px;
-      flex: 0 0 auto;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .stats-grid article {
-      border-radius: 22px;
-      padding: 16px;
-      background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
-    }
-
-    .stat-icon {
-      width: 34px;
-      height: 34px;
-      display: grid;
-      place-items: center;
-      border-radius: 12px;
-      margin-bottom: 12px;
-      background: rgba(46, 240, 109, 0.1);
-      color: var(--green);
-    }
-
-    .stat-icon.purple {
-      background: rgba(127, 107, 255, 0.12);
-      color: #9787ff;
-    }
-
-    .stat-icon svg {
-      width: 18px;
-      height: 18px;
-    }
-
-    .stat-value {
-      font-size: 34px;
-      font-weight: 800;
-      letter-spacing: -0.05em;
-      line-height: 1;
-    }
-
-    .stat-label {
-      margin-top: 8px;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .stat-note {
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .cta-button,
-    .pause-button,
-    .mini-button,
-    .api-link {
-      text-decoration: none;
-    }
-
-    .cta-button,
-    .pause-button,
-    .mini-button,
-    .primary-button,
-    .secondary-button,
-    .danger-button {
-      width: 100%;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
-    }
-
-    .cta-button {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 18px 22px;
-      border: 0;
-      background: linear-gradient(180deg, #38ef6d 0%, #26d95c 100%);
-      color: #041108;
-      font-size: 13px;
-      font-weight: 800;
-      box-shadow: 0 18px 30px rgba(46, 240, 109, 0.24);
-    }
-
-    .cta-main {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .cta-button svg,
-    .pause-button svg {
-      width: 22px;
-      height: 22px;
-      flex: 0 0 auto;
-    }
-
-    .pause-button {
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      padding: 16px 20px;
-      background: linear-gradient(180deg, #0c1016 0%, #090d13 100%);
-      color: #eff3f6;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .pause-button:hover,
-    .cta-button:hover,
-    .mini-button:hover,
-    .primary-button:hover,
-    .secondary-button:hover,
-    .danger-button:hover {
-      transform: translateY(-1px);
-    }
-
-    .settings-panel {
-      display: none;
-      border-radius: 22px;
-      padding: 18px;
-      background: linear-gradient(180deg, #090d12 0%, #0c1117 100%);
-    }
-
-    .settings-panel.open {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .settings-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .settings-title {
-      font-size: 14px;
-      font-weight: 800;
-    }
-
-    .settings-subtitle {
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .mini-button {
-      width: auto;
-      padding: 10px 14px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.03);
-      color: #f1f5f8;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .setup-card,
-    .api-card,
-    .history-card {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding: 16px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .setup-copy,
-    .api-copy,
-    .history-copy {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .setup-title,
-    .api-title,
-    .history-title {
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .setup-desc,
-    .api-desc,
-    .history-desc {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .setup-points {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .setup-points span {
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(46, 240, 109, 0.08);
-      color: #cbf9d8;
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .field-label-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .field-label {
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .api-link {
-      color: var(--green);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .field input {
-      width: 100%;
-      padding: 14px 16px;
-      border-radius: 16px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      outline: none;
-      background: rgba(255, 255, 255, 0.03);
-      color: var(--text);
-    }
-
-    .field input::placeholder {
-      color: #77808a;
-    }
-
-    .button-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-    }
-
-    .primary-button,
-    .secondary-button,
-    .danger-button {
-      border: 0;
-      padding: 13px 16px;
-      font-size: 12px;
-      font-weight: 800;
-    }
-
-    .primary-button {
-      background: linear-gradient(180deg, #38ef6d 0%, #26d95c 100%);
-      color: #041108;
-    }
-
-    .secondary-button {
-      width: auto;
-      padding-inline: 18px;
-      background: rgba(255, 255, 255, 0.07);
-      color: #f5f7fa;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .danger-button {
-      background: rgba(255, 95, 109, 0.12);
-      color: #ffd6da;
-      border: 1px solid rgba(255, 95, 109, 0.18);
-    }
-
-    .history-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      max-height: 220px;
-      overflow: auto;
-      padding-right: 2px;
-    }
-
-    .history-item,
-    .history-empty {
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      color: #e5ebf0;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .history-item-time {
-      margin-bottom: 6px;
-      color: var(--green);
-      font-size: 11px;
-      font-weight: 800;
-    }
-
-    .footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      color: var(--muted);
-      font-size: 12px;
-      padding: 2px 2px 0;
-    }
-
-    .footer-meta,
-    .footer-plan {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .footer-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 14px rgba(46, 240, 109, 0.45);
-    }
-
-    .footer-plan {
-      color: #f0c34f;
-    }
-
-    .footer-plan svg {
-      width: 16px;
-      height: 16px;
-    }
-
-    @keyframes pulse {
-      0%, 100% { transform: scaleY(0.55); opacity: 0.72; }
-      50% { transform: scaleY(1); opacity: 1; }
-    }
-  </style>
+  <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -799,8 +31,8 @@
         </button>
       </header>
 
-      <section class="hero" id="status-card">
-        <div class="hero-left">
+      <section class="training-card" id="training-card">
+        <div class="training-visual" id="training-visual">
           <div class="signal-ring">
             <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <rect x="4" y="11" width="3" height="10" rx="1.5" fill="currentColor"></rect>
@@ -811,18 +43,25 @@
           </div>
         </div>
 
-        <div class="hero-copy">
-          <div class="hero-status" id="status-dot">Inactive</div>
-          <div class="hero-title" id="status-label">Filtering Off</div>
-          <div class="hero-subtitle" id="status-sublabel">Train your voice and join a supported meeting to start filtering background voices.</div>
-          <div class="hero-check">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M20 7.5V6a2 2 0 0 0-1.3-1.9l-6-2.1a2 2 0 0 0-1.4 0l-6 2.1A2 2 0 0 0 4 6v5c0 5.1 3.4 9.5 8 10.8 4.6-1.3 8-5.7 8-10.8v-.5"></path>
-              <path d="m9 12 2 2 4-4"></path>
-            </svg>
-            <span id="hero-check-text">Background voice protection ready</span>
-          </div>
+        <div class="training-copy">
+          <div class="training-kicker" id="training-kicker">Voice Not Trained</div>
+          <h1 id="training-title">Train Your Voice</h1>
+          <p id="training-subtitle">Say 3 phrases so Hearly learns your voice</p>
+          <div class="trained-date" id="trained-date" hidden></div>
         </div>
+
+        <div class="training-progress" id="training-progress" aria-label="Voice training progress">
+          <span id="progress-fill"></span>
+        </div>
+
+        <div class="phrase-feedback" id="phrase-feedback" aria-live="polite"></div>
+
+        <button class="primary-button training-button" id="training-btn" type="button">
+          Start Training
+        </button>
+        <button class="link-button retrain-link" id="retrain-link" type="button" hidden>
+          Retrain Voice
+        </button>
       </section>
 
       <div class="meeting-notice" id="not-on-meeting">
@@ -834,7 +73,7 @@
       <section class="panel">
         <div class="panel-head">
           <div class="panel-title">Mic Activity</div>
-          <div class="mic-grade" id="mic-quality">Standby</div>
+          <div class="mic-grade needs-setup" id="mic-quality">Needs setup</div>
         </div>
         <div class="mic-wave" aria-hidden="true">
           <span class="active" style="height: 8px; animation-delay: 0s;"></span>
@@ -939,7 +178,7 @@
         </svg>
       </button>
 
-      <label class="pause-button" aria-label="Pause Hearly">
+      <label class="pause-button" aria-label="Toggle Hearly filtering">
         <input type="checkbox" id="main-toggle" hidden />
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="9"></circle>
@@ -949,71 +188,44 @@
         <span id="toggle-copy">Enable Filtering</span>
       </label>
 
-      <section class="settings-panel" id="settings-panel">
-        <div class="settings-top">
-          <div>
-            <div class="settings-title">Settings & Setup</div>
-            <div class="settings-subtitle">Manage voice training, optional cloud transcription, and private history.</div>
-          </div>
-          <button class="mini-button" id="close-settings-btn" type="button">Close</button>
-        </div>
-
-        <div class="setup-card" id="enroll-card">
-          <div class="setup-copy">
-            <div class="setup-title" id="enroll-title">Voice not trained</div>
-            <div class="setup-desc" id="enroll-desc">Train Hearly to recognize your voice before enabling filtering.</div>
-          </div>
-          <div class="setup-points">
-            <span>Open meeting</span>
-            <span>Tap train</span>
-            <span>Speak naturally</span>
-          </div>
-          <button class="primary-button" id="enroll-btn" type="button">Train My Voice</button>
-        </div>
-
-        <div class="api-card">
-          <div class="api-copy">
-            <div class="api-title">Optional Cloud Transcription</div>
-            <div class="api-desc">Add a Deepgram key only if you want cloud-powered transcripts. Voice filtering works without it.</div>
-          </div>
-          <div class="field">
-            <div class="field-label-row">
-              <label class="field-label" for="api-key-input">Deepgram Key</label>
-              <a class="api-link" href="https://deepgram.com" target="_blank" rel="noreferrer">Get key</a>
-            </div>
-            <input type="password" id="api-key-input" placeholder="Leave blank to keep cloud transcription off" autocomplete="off" />
-          </div>
-          <div class="button-row">
-            <button class="primary-button" id="save-key-btn" type="button">Save</button>
-            <button class="secondary-button" id="show-key-btn" type="button">Show</button>
-          </div>
-        </div>
-
-        <div class="history-card" id="transcript-history-panel">
-          <div class="history-copy">
-            <div class="history-title">Transcript History</div>
-            <div class="history-desc">Only you can see the nearby speech Hearly captures.</div>
-          </div>
-          <div id="history-content">
-            <div class="history-empty">No transcripts yet.</div>
-          </div>
-        </div>
-
-        <button class="danger-button" id="reset-btn" type="button">Reset Hearly</button>
-      </section>
-
       <footer class="footer">
         <div class="footer-meta">
           <span class="footer-dot"></span>
-          <span>Hearly v1.0.0</span>
+          <span>Hearly v1.1.0</span>
         </div>
-        <div class="footer-plan">
+        <button class="footer-plan" id="premium-plan-btn" type="button">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="m12 2 2.3 4.7 5.2.8-3.8 3.8.9 5.3L12 14.8 7.4 16.6l.9-5.3L4.5 7.5l5.2-.8L12 2Zm-6.8 17.5c1 0 1.8.8 1.8 1.8S6.2 23 5.2 23s-1.8-.8-1.8-1.8.8-1.7 1.8-1.7Zm13.6 0c1 0 1.8.8 1.8 1.8S19.8 23 18.8 23s-1.8-.8-1.8-1.8.8-1.7 1.8-1.7Z"></path>
+            <path d="m12 2 2.3 4.7 5.2.8-3.8 3.8.9 5.3L12 14.8 7.4 16.6l.9-5.3L4.5 7.5l5.2-.8L12 2Z"></path>
           </svg>
           <span>Premium Plan</span>
-        </div>
+        </button>
       </footer>
+    </div>
+
+    <div class="premium-modal" id="premium-modal" aria-hidden="true">
+      <div class="premium-backdrop" id="premium-backdrop"></div>
+      <section class="premium-dialog" role="dialog" aria-modal="true" aria-labelledby="premium-title">
+        <div class="premium-star">✨</div>
+        <h2 id="premium-title">Hearly Premium</h2>
+        <p>More power. Fewer interruptions.</p>
+        <ul class="premium-features">
+          <li>🔒 Unlimited transcript history</li>
+          <li>🔒 Multi-language switching on the fly</li>
+          <li>🔒 Export transcripts as PDF</li>
+          <li>🔒 Priority voice model (faster, more accurate)</li>
+          <li>🔒 Slack / Notion integration</li>
+        </ul>
+        <div class="coming-soon">COMING SOON</div>
+        <div class="premium-signup">
+          <label for="premium-email">Notify me when it's ready</label>
+          <div class="premium-email-row">
+            <input id="premium-email" type="email" placeholder="you@example.com" autocomplete="email" />
+            <button class="primary-button" id="premium-remind-btn" type="button">Remind Me</button>
+          </div>
+          <div class="premium-confirmation" id="premium-confirmation" aria-live="polite"></div>
+        </div>
+        <button class="secondary-button close-modal-btn" id="premium-close-btn" type="button">Close</button>
+      </section>
     </div>
   </div>
 

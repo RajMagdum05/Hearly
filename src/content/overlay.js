@@ -15,8 +15,6 @@
     isActive: false,
     isEnrolled: false,
     voiceProfile: null,       // { mfccMeans: [], mfccStds: [] }
-    deepgramApiKey: "",
-    filterMode: "smart",
     audioContext: null,
     processorNode: null,
     sourceNode: null,
@@ -37,7 +35,6 @@
   const CHUNK_SIZE = 1024;
   const SAMPLE_RATE = 16000;
   const MATCH_THRESHOLD = 0.72;
-  const STRICT_MATCH_THRESHOLD = 0.84;
   const SILENCE_FLUSH_MS = 1200;
   const MIN_BG_AUDIO_MS = 400;
 
@@ -90,8 +87,14 @@
     startBtn.addEventListener("click", () => {
       if (State.isMeetingTranscribing) {
         window.postMessage({ hearlyMsg: true, type: "HEARLY_STOP_MEETING" }, "*");
+        State.isMeetingTranscribing = false;
+        startBtn.textContent = "Start Meeting Intelligence";
+        startBtn.classList.remove("hearly-active");
       } else {
         window.postMessage({ hearlyMsg: true, type: "HEARLY_START_MEETING" }, "*");
+        State.isMeetingTranscribing = true;
+        startBtn.textContent = "Stop Transcribing";
+        startBtn.classList.add("hearly-active");
       }
     });
 
@@ -168,19 +171,6 @@
     setTimeout(() => toast.classList.remove("hearly-toast-show"), 3000);
   }
 
-  function syncMeetingButton() {
-    const startBtn = document.getElementById("hearly-start-meeting-btn");
-    if (!startBtn) return;
-
-    if (State.isMeetingTranscribing) {
-      startBtn.textContent = "Stop Transcribing";
-      startBtn.classList.add("hearly-active");
-    } else {
-      startBtn.textContent = "Start Meeting Intelligence";
-      startBtn.classList.remove("hearly-active");
-    }
-  }
-
   function updateBadge(status) {
     const dot = document.getElementById("hearly-status-dot");
     const text = document.getElementById("hearly-badge-text");
@@ -192,10 +182,6 @@
       enrolling: "Training...",
     };
     if (text) text.textContent = labels[status] || "Hearly";
-  }
-
-  function isFilteringEnabled() {
-    return State.isActive && State.filterMode !== "off";
   }
 
   // ══════════════════════════════════════════
@@ -464,6 +450,10 @@
   }
 
   function computeVoiceSimilarity(audioChunk, profile) {
+    if (Array.isArray(profile)) {
+      return computeSimpleProfileSimilarity(audioChunk, profile);
+    }
+
     const mfcc = extractMFCC(audioChunk);
     if (!mfcc || !profile?.mfccMeans || !profile?.mfccStds) return 0;
     const means = profile.mfccMeans;
@@ -477,8 +467,12 @@
     return Math.max(0, 1 - (distance / 4.0));
   }
 
-  function getCurrentMatchThreshold() {
-    return State.filterMode === "strict" ? STRICT_MATCH_THRESHOLD : MATCH_THRESHOLD;
+  function computeSimpleProfileSimilarity(audioChunk, profile) {
+    if (!profile || profile.length < 2) return 0;
+    const energy = getRMS(audioChunk);
+    const targetEnergy = Number(profile[0] || 0);
+    const energyScore = 1 - Math.min(1, Math.abs(energy - targetEnergy) / Math.max(targetEnergy, 0.01));
+    return Math.max(0, energyScore);
   }
 
   // ══════════════════════════════════════════
@@ -535,12 +529,12 @@
     processor.onaudioprocess = (e) => {
       const input = e.inputBuffer.getChannelData(0);
       const output = e.outputBuffer.getChannelData(0);
-      if (!isFilteringEnabled() || !State.isEnrolled || !State.voiceProfile) {
+      if (!State.isActive || !State.isEnrolled || !State.voiceProfile) {
         output.set(input);
         return;
       }
       const sim = computeVoiceSimilarity(input, State.voiceProfile);
-      if (sim >= getCurrentMatchThreshold() || getRMS(input) < 0.01) {
+      if (sim >= MATCH_THRESHOLD || getRMS(input) < 0.01) {
         output.set(input);
       } else {
         output.fill(0);
@@ -578,11 +572,6 @@
   }
 
   function processBackgroundAudio(samples) {
-    if (!State.deepgramApiKey) {
-      showToast("Cloud transcription is unavailable. Add a Deepgram key to capture nearby transcript history.", "error");
-      return;
-    }
-
     const wav = floatArrayToWav(samples, SAMPLE_RATE);
     const base64 = arrayBufferToBase64(wav);
     State.transcriptionQueue.push(base64);
@@ -701,15 +690,13 @@
     }
 
     showTranscript(normalized);
-    window.postMessage({ hearlyMsg: true, type: "HEARLY_SAVE_TRANSCRIPT", text: normalized }, "*");
     drainTranscriptionQueue();
   }
 
   function syncProcessorState() {
     if (!State.processorNode?.port) return;
 
-    State.processorNode.port.postMessage({ type: "SET_ACTIVE", data: isFilteringEnabled() });
-    State.processorNode.port.postMessage({ type: "SET_THRESHOLD", data: getCurrentMatchThreshold() });
+    State.processorNode.port.postMessage({ type: "SET_ACTIVE", data: State.isActive });
     if (State.voiceProfile) {
       State.processorNode.port.postMessage({ type: "SET_PROFILE", data: State.voiceProfile });
     }
@@ -748,12 +735,10 @@
     const msg = e.data;
     if (msg.type === "HEARLY_STORAGE_DATA") {
         State.isActive = msg.data.hearlyActive;
-        State.isEnrolled = msg.data.hearlyEnrolled;
+        State.isEnrolled = Boolean(msg.data.hearlyEnrolled || Array.isArray(msg.data.voiceProfile));
         State.voiceProfile = msg.data.voiceProfile;
-        State.deepgramApiKey = msg.data.deepgramApiKey || "";
-        State.filterMode = msg.data.filterMode || "smart";
         syncProcessorState();
-        updateBadge(isFilteringEnabled() ? "active" : "inactive");
+        updateBadge(State.isActive ? "active" : "inactive");
     } else if (msg.type === "HEARLY_TOGGLE") {
         State.isActive = msg.value;
         if (!State.isActive) {
@@ -763,26 +748,7 @@
           clearTimeout(State.backgroundSilenceTimer);
         }
         syncProcessorState();
-        updateBadge(isFilteringEnabled() ? "active" : "inactive");
-    } else if (msg.type === "HEARLY_FILTER_MODE_UPDATED") {
-        State.filterMode = msg.value || "smart";
-        syncProcessorState();
-        updateBadge(isFilteringEnabled() ? "active" : "inactive");
-    } else if (msg.type === "HEARLY_API_KEY_UPDATED") {
-        State.deepgramApiKey = msg.value || "";
-        State.transcriptionQueue = [];
-        State.isTranscribing = false;
-    } else if (msg.type === "HEARLY_MEETING_CONTROL_RESULT") {
-        if (msg.action === "start") {
-          State.isMeetingTranscribing = Boolean(msg.ok);
-          if (!msg.ok) showToast(msg.error || "Could not start meeting transcription", "error");
-        } else if (msg.action === "stop") {
-          if (!msg.ok) {
-            showToast(msg.error || "Could not stop meeting transcription", "error");
-          }
-          State.isMeetingTranscribing = false;
-        }
-        syncMeetingButton();
+        updateBadge(State.isActive ? "active" : "inactive");
     } else if (msg.type === "HEARLY_TRANSCRIPT_RESULT") {
         handleTranscriptResult(msg.text);
     } else if (msg.type === "HEARLY_PROFILE_UPDATED") {
@@ -790,26 +756,14 @@
         State.isEnrolled = true;
         syncProcessorState();
         showToast("Voice profile updated", "success");
-    } else if (msg.type === "HEARLY_RESET") {
-        State.isActive = false;
-        State.isEnrolled = false;
-        State.voiceProfile = null;
-        State.deepgramApiKey = "";
-        State.filterMode = "smart";
-        State.backgroundBuffer = [];
-        State.transcriptionQueue = [];
-        State.isTranscribing = false;
-        State.isMeetingTranscribing = false;
-        clearTimeout(State.backgroundSilenceTimer);
-        syncProcessorState();
-        syncMeetingButton();
-        updateBadge("inactive");
-        const content = document.getElementById("hearly-transcript-content");
-        if (content) content.innerHTML = "";
     } else if (msg.type === "HEARLY_ENROLL") {
         enrollVoice();
     } else if (msg.type === "HEARLY_MEETING_TRANSCRIPT") {
         showTranscript(msg.text, "meeting", msg.isFinal, msg.speaker);
+    } else if (msg.type === "TRANSCRIPT") {
+        showTranscript(msg.text, "meeting", msg.isFinal, "nearby");
+    } else if (msg.type === "DEEPGRAM_ERROR") {
+        showToast(msg.reason || "Deepgram transcription error", "error");
     }
   });
 

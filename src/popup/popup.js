@@ -1,13 +1,4 @@
-// ─────────────────────────────────────────────
-//  Hearly — Popup Script
-// ─────────────────────────────────────────────
-
 document.addEventListener("DOMContentLoaded", async () => {
-  const hasExtensionApi =
-    typeof chrome !== "undefined" &&
-    Boolean(chrome.runtime?.id) &&
-    Boolean(chrome.storage?.local);
-
   const SUPPORTED_HOSTS = [
     "meet.google.com",
     "zoom.us",
@@ -15,296 +6,340 @@ document.addEventListener("DOMContentLoaded", async () => {
     "localhost",
   ];
 
-  // ── Elements ──────────────────────────────
-  const mainToggle     = document.getElementById("main-toggle");
-  const statusDot      = document.getElementById("status-dot");
-  const statusLabel    = document.getElementById("status-label");
-  const statusSublabel = document.getElementById("status-sublabel");
-  const enrollBtn      = document.getElementById("enroll-btn");
-  const enrollCard     = document.getElementById("enroll-card");
-  const enrollTitle    = document.getElementById("enroll-title");
-  const enrollDesc     = document.getElementById("enroll-desc");
-  const apiKeyInput    = document.getElementById("api-key-input");
-  const saveKeyBtn     = document.getElementById("save-key-btn");
-  const showKeyBtn     = document.getElementById("show-key-btn");
-  const resetBtn       = document.getElementById("reset-btn");
-  const notification   = document.getElementById("notification");
-  const historyContent = document.getElementById("history-content");
-  const notOnMeeting   = document.getElementById("not-on-meeting");
-  const statusCard     = document.getElementById("status-card");
-  const heroCheckText  = document.getElementById("hero-check-text");
-  const micQuality     = document.getElementById("mic-quality");
-  const toggleCopy     = document.getElementById("toggle-copy");
+  const mainToggle = document.getElementById("main-toggle");
+  const toggleCopy = document.getElementById("toggle-copy");
+  const trainingCard = document.getElementById("training-card");
+  const trainingVisual = document.getElementById("training-visual");
+  const trainingKicker = document.getElementById("training-kicker");
+  const trainingTitle = document.getElementById("training-title");
+  const trainingSubtitle = document.getElementById("training-subtitle");
+  const trainedDate = document.getElementById("trained-date");
+  const trainingBtn = document.getElementById("training-btn");
+  const retrainLink = document.getElementById("retrain-link");
+  const progressFill = document.getElementById("progress-fill");
+  const phraseFeedback = document.getElementById("phrase-feedback");
+  const notification = document.getElementById("notification");
+  const notOnMeeting = document.getElementById("not-on-meeting");
+  const micQuality = document.getElementById("mic-quality");
   const settingsToggle = document.getElementById("settings-toggle");
-  const settingsPanel  = document.getElementById("settings-panel");
-  const closeSettingsBtn = document.getElementById("close-settings-btn");
   const viewTranscriptsBtn = document.getElementById("view-transcripts-btn");
-  const transcriptHistoryPanel = document.getElementById("transcript-history-panel");
   const voicesFilteredCount = document.getElementById("voices-filtered-count");
   const transcriptsCount = document.getElementById("transcripts-count");
+  const premiumPlanBtn = document.getElementById("premium-plan-btn");
+  const premiumModal = document.getElementById("premium-modal");
+  const premiumBackdrop = document.getElementById("premium-backdrop");
+  const premiumCloseBtn = document.getElementById("premium-close-btn");
+  const premiumEmail = document.getElementById("premium-email");
+  const premiumRemindBtn = document.getElementById("premium-remind-btn");
+  const premiumConfirmation = document.getElementById("premium-confirmation");
   const modeButtons = Array.from(document.querySelectorAll("[data-mode]"));
 
-  let currentState = {
-    hearlyActive: false,
-    hearlyEnrolled: false,
-    deepgramApiKey: "",
-    transcriptHistory: [],
-    filterMode: "smart",
-  };
   let selectedMode = "smart";
   let onMeeting = false;
+  let state = {
+    hearlyActive: false,
+    voiceProfile: null,
+    trainedAt: "",
+    transcripts: [],
+  };
 
-  // ── Load stored state ─────────────────────
-  if (hasExtensionApi) {
-    currentState = await loadState();
-    mainToggle.checked = currentState.hearlyActive;
-    apiKeyInput.value  = currentState.deepgramApiKey;
-    selectedMode = currentState.filterMode || "smart";
-
-    // ── Check if on meeting page ───────────────
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    onMeeting = isSupportedMeetingUrl(tab?.url);
-
-    if (!onMeeting) {
-      notOnMeeting.style.display = "block";
-      statusCard.style.opacity = "0.7";
-    }
-  } else {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  onMeeting = isSupportedMeetingUrl(tab?.url);
+  if (!onMeeting) {
     notOnMeeting.style.display = "block";
-    notOnMeeting.textContent = "Preview mode only. Load this as a Chrome extension on a supported meeting tab to use Hearly.";
-    statusCard.style.opacity = "0.7";
   }
 
+  state = await loadState();
   syncUI();
 
-  // ── Toggle Hearly on/off ───────────────────
   mainToggle.addEventListener("change", async () => {
-    if (!hasExtensionApi) {
+    const isTrained = hasVoiceProfile(state.voiceProfile);
+    if (!isTrained) {
       mainToggle.checked = false;
-      showNotification("Preview mode only. Load the extension in Chrome to use live filtering.", "info");
+      showNotification("Train your voice before enabling filtering.", "error");
       return;
     }
 
-    const value = mainToggle.checked;
+    if (!onMeeting) {
+      mainToggle.checked = false;
+      showNotification("Open a supported meeting tab before enabling filtering.", "error");
+      return;
+    }
+
+    const value = mainToggle.checked && selectedMode !== "off";
     await chrome.runtime.sendMessage({ type: "SET_ACTIVE", value });
-    currentState.hearlyActive = value;
+    state.hearlyActive = value;
     syncUI();
-    showNotification(
-      value ? "🟢 Hearly is now filtering your mic" : "⚫ Hearly paused",
-      value ? "success" : "info"
-    );
+    showNotification(value ? "Hearly is now filtering your mic." : "Hearly paused.", value ? "success" : "info");
   });
 
-  enrollBtn.addEventListener("click", async () => {
-    if (!hasExtensionApi) {
-      showNotification("Preview mode only. Voice training starts from the installed extension popup.", "info");
-      return;
-    }
-
-    // Trigger enrollment in the active tab
-    try {
-      const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!currentTab?.id) {
-        showNotification("❌ No active tab found.", "error");
-        return;
-      }
-
-      // Check for restricted URLs (chrome://, edge://, about:, etc.)
-      const restrictedSchemes = ["chrome:", "edge:", "about:", "chrome-extension:", "moz-extension:"];
-      if (currentTab.url && restrictedSchemes.some(scheme => currentTab.url.startsWith(scheme))) {
-        showNotification("❌ Setup cannot run on browser system pages. Please open a meeting tab first.", "error");
-        return;
-      }
-
-      if (!isSupportedMeetingUrl(currentTab.url)) {
-        showNotification("❌ Please open Google Meet, Zoom, or Teams to start setup.", "error");
-        return;
-      }
-
-      await chrome.scripting.executeScript({
-        target: { tabId: currentTab.id },
-        func: () => {
-           if (window.__hearlyEnroll) {
-               window.__hearlyEnroll();
-           } else {
-               alert("Hearly overlay not found on this page. Please refresh the meeting tab or ensure you are on a supported meeting site.");
-           }
-        },
-      });
-      
-      showNotification("🎙️ Setup started on the page! Please switch to your meeting tab.", "success");
-      // Keep popup open so they can read the message
-    } catch (err) {
-      console.error("[Hearly Popup] Enroll error:", err);
-      if (err.message && err.message.includes("Cannot access")) {
-        showNotification("❌ Hearly cannot access this page. Please try on Google Meet or Zoom.", "error");
-      } else {
-        showNotification("❌ Could not start training. Check permissions or refresh the tab.", "error");
-      }
-    } finally {
-      enrollBtn.disabled = false;
-    }
+  trainingBtn.addEventListener("click", () => {
+    startTraining().catch((err) => {
+      console.error("[Hearly Popup] Training failed:", err);
+      showNotification(err.message || "Could not train voice.", "error");
+      renderTrainingIdle(false);
+    });
   });
 
-  // ── Save API key ───────────────────────────
-  saveKeyBtn.addEventListener("click", async () => {
-    const key = apiKeyInput.value.trim();
-    if (!hasExtensionApi) {
-      currentState.deepgramApiKey = key;
-      showNotification("Preview mode only. This does not save outside the installed extension.", "info");
-      return;
-    }
-
-    await chrome.runtime.sendMessage({ type: "SET_API_KEY", key });
-    currentState.deepgramApiKey = key;
-    showNotification(
-      key
-        ? "🔑 Cloud transcription key saved."
-        : "Cloud transcription key cleared. Filtering still works without it.",
-      "success"
-    );
+  retrainLink.addEventListener("click", () => {
+    startTraining().catch((err) => {
+      console.error("[Hearly Popup] Retraining failed:", err);
+      showNotification(err.message || "Could not retrain voice.", "error");
+      syncUI();
+    });
   });
 
-  // ── Show/hide API key ──────────────────────
-  showKeyBtn.addEventListener("click", () => {
-    apiKeyInput.type = apiKeyInput.type === "password" ? "text" : "password";
-    showKeyBtn.textContent = apiKeyInput.type === "password" ? "Show" : "Hide";
+  settingsToggle.addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
   });
 
-  settingsToggle?.addEventListener("click", () => {
-    settingsPanel.classList.toggle("open");
-  });
-
-  closeSettingsBtn?.addEventListener("click", () => {
-    settingsPanel.classList.remove("open");
-  });
-
-  viewTranscriptsBtn?.addEventListener("click", () => {
-    settingsPanel.classList.add("open");
-    transcriptHistoryPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  viewTranscriptsBtn.addEventListener("click", () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("src/history/history.html") });
   });
 
   modeButtons.forEach((button) => {
     button.addEventListener("click", async () => {
       selectedMode = button.dataset.mode || "smart";
-      currentState.filterMode = selectedMode;
+      if (selectedMode === "off" && state.hearlyActive) {
+        state.hearlyActive = false;
+        mainToggle.checked = false;
+        await chrome.runtime.sendMessage({ type: "SET_ACTIVE", value: false });
+      }
       syncModeButtons();
-      if (hasExtensionApi) {
-        await chrome.runtime.sendMessage({ type: "SET_FILTER_MODE", value: selectedMode });
-      }
+      syncFilteringUI();
     });
   });
 
-  // ── Reset everything ───────────────────────
-  resetBtn.addEventListener("click", async () => {
-    if (!confirm("Reset all Hearly data including voice profile?")) return;
-    if (!hasExtensionApi) {
-      showNotification("Preview mode only. Nothing was reset outside this page.", "info");
+  premiumPlanBtn.addEventListener("click", openPremiumModal);
+  premiumBackdrop.addEventListener("click", closePremiumModal);
+  premiumCloseBtn.addEventListener("click", closePremiumModal);
+
+  premiumRemindBtn.addEventListener("click", async () => {
+    const email = premiumEmail.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      premiumConfirmation.textContent = "Enter a valid email.";
+      premiumConfirmation.classList.add("error");
       return;
     }
-    const result = await chrome.runtime.sendMessage({ type: "RESET_HEARLY_STATE" });
-    if (!result?.ok) {
-      showNotification(`❌ Reset failed: ${result?.error || "Unknown error"}`, "error");
-      return;
-    }
-    showNotification("🔄 Reset complete", "info");
-    setTimeout(() => window.location.reload(), 1500);
+
+    await chrome.storage.local.set({
+      premiumEmail: email,
+      signedUpAt: new Date().toISOString(),
+    });
+    premiumConfirmation.classList.remove("error");
+    premiumConfirmation.textContent = "✓ We'll let you know!";
   });
 
-  if (hasExtensionApi) {
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName !== "local") return;
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
 
-      for (const [key, change] of Object.entries(changes)) {
-        currentState[key] = change.newValue;
+    if (changes.hearlyActive) state.hearlyActive = Boolean(changes.hearlyActive.newValue);
+    if (changes.voiceProfile) state.voiceProfile = changes.voiceProfile.newValue;
+    if (changes.trainedAt) state.trainedAt = changes.trainedAt.newValue || "";
+    if (changes.transcripts) state.transcripts = changes.transcripts.newValue || [];
+
+    syncUI();
+  });
+
+  window.addEventListener("focus", async () => {
+    state = await loadState();
+    syncUI();
+  });
+
+  async function startTraining() {
+    renderTrainingRecording(1);
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const audioContext = new AudioContextClass();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+
+    const phraseProfiles = [];
+
+    try {
+      for (let phrase = 1; phrase <= 3; phrase += 1) {
+        renderTrainingRecording(phrase);
+        const phraseProfile = await recordPhrase(analyser, phrase);
+        phraseProfiles.push(phraseProfile);
+        progressFill.style.width = `${(phrase / 3) * 100}%`;
+        phraseFeedback.textContent = `✓ Phrase ${phrase} saved`;
+        await wait(650);
       }
 
-      if (typeof changes.filterMode?.newValue !== "undefined") {
-        selectedMode = changes.filterMode.newValue || "smart";
-      }
+      const profile = averageProfiles(phraseProfiles);
+      const trainedAtValue = new Date().toISOString();
 
-      syncUI();
-    });
+      await chrome.storage.local.set({
+        voiceProfile: profile,
+        trainedAt: trainedAtValue,
+        hearlyEnrolled: true,
+      });
 
-    window.addEventListener("focus", async () => {
-      currentState = await loadState();
-      syncUI();
+      state.voiceProfile = profile;
+      state.trainedAt = trainedAtValue;
+      renderTrainingSuccess();
+      await chrome.runtime.sendMessage({ type: "VOICE_ENROLLED", profile });
+    } finally {
+      stream.getTracks().forEach((track) => track.stop());
+      source.disconnect();
+      await audioContext.close();
+    }
+  }
+
+  function recordPhrase(analyser, phrase) {
+    return new Promise((resolve) => {
+      const freq = new Uint8Array(analyser.frequencyBinCount);
+      const sums = new Float32Array(analyser.frequencyBinCount);
+      let energySum = 0;
+      let samples = 0;
+      const startedAt = performance.now();
+
+      const timer = setInterval(() => {
+        analyser.getByteFrequencyData(freq);
+        let frameEnergy = 0;
+        for (let i = 0; i < freq.length; i += 1) {
+          const normalized = freq[i] / 255;
+          sums[i] += normalized;
+          frameEnergy += normalized * normalized;
+        }
+        energySum += Math.sqrt(frameEnergy / freq.length);
+        samples += 1;
+
+        const elapsed = performance.now() - startedAt;
+        const secondsLeft = Math.max(0, Math.ceil((3000 - elapsed) / 1000));
+        trainingBtn.innerHTML = `<span class="record-dot"></span> Recording... (${phrase}/3)`;
+        phraseFeedback.textContent = secondsLeft > 0 ? `Keep speaking... ${secondsLeft}s` : "Saving phrase...";
+
+        if (elapsed >= 3000) {
+          clearInterval(timer);
+          const averaged = Array.from(sums, (value) => value / Math.max(samples, 1));
+          resolve([energySum / Math.max(samples, 1), ...averaged]);
+        }
+      }, 100);
     });
   }
 
-  // ═══════════════════════════════════════════
-  //  HELPER FUNCTIONS
-  // ═══════════════════════════════════════════
+  function averageProfiles(profiles) {
+    const length = Math.max(...profiles.map((profile) => profile.length));
+    const output = new Float32Array(length);
 
-  function updateStatus(active, enrolled) {
-    const effectiveActive = active && enrolled && onMeeting && selectedMode !== "off";
+    profiles.forEach((profile) => {
+      for (let i = 0; i < length; i += 1) {
+        output[i] += Number(profile[i] || 0);
+      }
+    });
 
-    if (!enrolled) {
-      statusDot.textContent = "Setup Needed";
-      statusLabel.textContent = "Voice Not Trained";
-      statusSublabel.textContent = "Train your voice before Hearly can tell you apart from nearby speakers.";
-      heroCheckText.textContent = "Voice profile required";
+    return Array.from(output, (value) => Number((value / profiles.length).toFixed(6)));
+  }
+
+  function renderTrainingIdle(isTrained) {
+    trainingBtn.disabled = false;
+    trainingCard.classList.remove("recording", "success");
+    progressFill.style.width = "0%";
+    phraseFeedback.textContent = "";
+
+    if (isTrained) {
+      renderTrainingSuccess();
+      return;
+    }
+
+    trainingVisual.innerHTML = signalRingMarkup();
+    trainingKicker.textContent = "Voice Not Trained";
+    trainingTitle.textContent = "Train Your Voice";
+    trainingSubtitle.textContent = "Say 3 phrases so Hearly learns your voice";
+    trainedDate.hidden = true;
+    trainingBtn.hidden = false;
+    trainingBtn.textContent = "Start Training";
+    retrainLink.hidden = true;
+  }
+
+  function renderTrainingRecording(phrase) {
+    trainingCard.classList.remove("success");
+    trainingCard.classList.add("recording");
+    trainingVisual.innerHTML = signalRingMarkup();
+    trainingKicker.textContent = "Recording";
+    trainingTitle.textContent = "Train Your Voice";
+    trainingSubtitle.textContent = "Speak naturally for this phrase";
+    trainedDate.hidden = true;
+    trainingBtn.hidden = false;
+    trainingBtn.disabled = true;
+    trainingBtn.innerHTML = `<span class="record-dot"></span> Recording... (${phrase}/3)`;
+    retrainLink.hidden = true;
+  }
+
+  function renderTrainingSuccess() {
+    trainingBtn.disabled = false;
+    trainingCard.classList.remove("recording");
+    trainingCard.classList.add("success");
+    progressFill.style.width = "100%";
+    phraseFeedback.textContent = "";
+    trainingVisual.innerHTML = '<div class="trained-check">✓</div>';
+    trainingKicker.textContent = "Ready";
+    trainingTitle.textContent = "Voice Trained ✓";
+    trainingSubtitle.textContent = "Hearly can now compare nearby speech against your voice.";
+    trainedDate.hidden = false;
+    trainedDate.textContent = state.trainedAt ? `Trained ${formatDate(state.trainedAt)}` : "";
+    trainingBtn.hidden = true;
+    retrainLink.hidden = false;
+    syncFilteringUI();
+  }
+
+  function syncUI() {
+    const isTrained = hasVoiceProfile(state.voiceProfile);
+    renderTrainingIdle(isTrained);
+    syncModeButtons();
+    syncFilteringUI();
+    updateStats();
+  }
+
+  function syncFilteringUI() {
+    const isTrained = hasVoiceProfile(state.voiceProfile);
+    const canRun = isTrained && onMeeting && selectedMode !== "off";
+
+    mainToggle.disabled = !canRun;
+    mainToggle.checked = Boolean(state.hearlyActive && canRun);
+    mainToggle.closest(".pause-button")?.classList.toggle("disabled", !canRun);
+
+    if (!isTrained) {
       micQuality.textContent = "Needs setup";
-      toggleCopy.textContent = "Complete Setup";
-      mainToggle.disabled = true;
-    } else if (effectiveActive) {
-      statusDot.textContent = "Active";
-      statusLabel.textContent = "Filtering On";
-      statusSublabel.textContent = "Filtering background voices while preserving your speech for the call.";
-      heroCheckText.textContent = "Filtering background voices";
-      micQuality.textContent = selectedMode === "strict" ? "Strict" : "Good";
+      micQuality.classList.add("needs-setup");
+      toggleCopy.textContent = "Train Voice First";
+    } else if (state.hearlyActive && canRun) {
+      micQuality.textContent = "Active";
+      micQuality.classList.remove("needs-setup");
       toggleCopy.textContent = "Pause Filtering";
-      mainToggle.disabled = !onMeeting || !hasExtensionApi;
     } else {
-      statusDot.textContent = selectedMode === "off" ? "Paused" : "Ready";
-      statusLabel.textContent = selectedMode === "off" ? "Filtering Off" : "Ready to Filter";
-      statusSublabel.textContent = !hasExtensionApi
-        ? "This file is a UI preview. Install the extension in Chrome for live behavior."
-        : onMeeting
-          ? "Turn filtering on whenever you want Hearly to protect the meeting from nearby voices."
-          : "Join a supported meeting to start live filtering.";
-      heroCheckText.textContent = !hasExtensionApi
-        ? "Preview only"
-        : onMeeting
-          ? "Protection ready when you are"
-          : "Open a supported meeting tab";
-      micQuality.textContent = !hasExtensionApi ? "Preview" : onMeeting ? "Standby" : "Unavailable";
-      toggleCopy.textContent = !hasExtensionApi ? "Preview Only" : onMeeting ? "Enable Filtering" : "Meeting Required";
-      mainToggle.disabled = !onMeeting || !hasExtensionApi;
+      micQuality.textContent = "Active";
+      micQuality.classList.remove("needs-setup");
+      toggleCopy.textContent = canRun ? "Enable Filtering" : "Meeting Required";
     }
   }
 
-  function updateEnrollCard(enrolled) {
-    if (enrolled) {
-      enrollTitle.textContent = "Voice profile ready";
-      enrollDesc.textContent = "Hearly recognizes your voice now. Re-train anytime if your setup changes.";
-      enrollBtn.textContent = "Re-train Voice";
-      enrollBtn.className = "secondary-button";
-    } else {
-      enrollTitle.textContent = "Voice not trained";
-      enrollDesc.textContent = "Train Hearly to recognize your voice before enabling filtering.";
-      enrollBtn.textContent = "Train My Voice";
-      enrollBtn.className = "primary-button";
-    }
+  function syncModeButtons() {
+    modeButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.mode === selectedMode);
+    });
   }
 
-  function renderHistory(history) {
-    if (!history || history.length === 0) {
-      historyContent.innerHTML = '<div class="history-empty">No transcripts yet</div>';
-      return;
-    }
+  function updateStats() {
+    const transcripts = Array.isArray(state.transcripts) ? state.transcripts : [];
+    transcriptsCount.textContent = String(transcripts.length);
+    voicesFilteredCount.textContent = String(transcripts.filter((item) => item.speaker === "filtered").length);
+  }
 
-    const recent = history.slice(-5).reverse();
-    historyContent.innerHTML = `
-      <div class="history-list">
-        ${recent.map((item) => `
-          <div class="history-item">
-            <div class="history-item-time">${new Date(item.timestamp).toLocaleTimeString()}</div>
-            ${escapeHtml(item.text)}
-          </div>
-        `).join("")}
-      </div>
-    `;
+  function openPremiumModal() {
+    premiumModal.classList.add("open");
+    premiumModal.setAttribute("aria-hidden", "false");
+    premiumEmail.focus();
+  }
+
+  function closePremiumModal() {
+    premiumModal.classList.remove("open");
+    premiumModal.setAttribute("aria-hidden", "true");
+    premiumConfirmation.textContent = "";
   }
 
   function showNotification(message, type = "info") {
@@ -315,50 +350,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 3500);
   }
 
-  function getStorage(keys) {
-    return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
-  }
-
   async function loadState() {
-    const data = await getStorage([
+    const local = await chrome.storage.local.get([
       "hearlyActive",
-      "hearlyEnrolled",
-      "deepgramApiKey",
+      "voiceProfile",
+      "trainedAt",
+      "transcripts",
       "transcriptHistory",
-      "filterMode",
     ]);
 
     return {
-      hearlyActive: data.hearlyActive || false,
-      hearlyEnrolled: data.hearlyEnrolled || false,
-      deepgramApiKey: data.deepgramApiKey || "",
-      transcriptHistory: data.transcriptHistory || [],
-      filterMode: data.filterMode || "smart",
+      hearlyActive: Boolean(local.hearlyActive),
+      voiceProfile: local.voiceProfile || null,
+      trainedAt: local.trainedAt || local.voiceProfile?.trainedAt || "",
+      transcripts: local.transcripts || migrateTranscriptHistory(local.transcriptHistory || []),
     };
   }
 
-  function syncUI() {
-    mainToggle.checked = Boolean(currentState.hearlyActive) && selectedMode !== "off" && hasExtensionApi;
-    if (document.activeElement !== apiKeyInput) {
-      apiKeyInput.value = currentState.deepgramApiKey || "";
-    }
-    syncModeButtons();
-    updateStatus(Boolean(currentState.hearlyActive), Boolean(currentState.hearlyEnrolled));
-    updateEnrollCard(Boolean(currentState.hearlyEnrolled));
-    renderHistory(currentState.transcriptHistory || []);
-    updateStats(currentState.transcriptHistory || []);
+  function migrateTranscriptHistory(history) {
+    return history.map((item) => ({
+      id: crypto.randomUUID(),
+      text: item.text || "",
+      speaker: "nearby",
+      timestamp: item.timestamp || new Date().toISOString(),
+      duration: item.duration || 0,
+    }));
   }
 
-  function updateStats(history) {
-    const transcriptTotal = history.length;
-    const filteredVoices = currentState.hearlyActive ? transcriptTotal : Math.min(transcriptTotal, 3);
-    transcriptsCount.textContent = String(transcriptTotal);
-    voicesFilteredCount.textContent = String(filteredVoices);
+  function hasVoiceProfile(profile) {
+    return Array.isArray(profile) && profile.length > 1;
   }
 
-  function syncModeButtons() {
-    modeButtons.forEach((button) => {
-      button.classList.toggle("active", button.dataset.mode === selectedMode);
+  function formatDate(value) {
+    return new Date(value).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   }
 
@@ -375,9 +402,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.appendChild(document.createTextNode(text));
-    return div.innerHTML;
+  function signalRingMarkup() {
+    return `
+      <div class="signal-ring">
+        <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect x="4" y="11" width="3" height="10" rx="1.5" fill="currentColor"></rect>
+          <rect x="10" y="7" width="3" height="18" rx="1.5" fill="currentColor"></rect>
+          <rect x="16" y="4" width="3" height="24" rx="1.5" fill="currentColor"></rect>
+          <rect x="22" y="8" width="3" height="16" rx="1.5" fill="currentColor"></rect>
+        </svg>
+      </div>
+    `;
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 });

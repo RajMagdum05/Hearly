@@ -10,11 +10,9 @@
     "scripting",
     "tabs",
     "tabCapture",
+    "notifications",
     "offscreen"
   ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.deepgram.com wss://api.deepgram.com"
-  },
 
   "host_permissions": [
     "https://meet.google.com/*",
@@ -25,10 +23,16 @@
     "file:///*"
   ],
 
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.deepgram.com wss://api.deepgram.com"
+  },
+
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"
   },
+
+  "options_page": "src/settings/settings.html",
 
   "content_scripts": [
     {
@@ -58,7 +62,9 @@
       "resources": [
         "src/worklet/voice-processor.js",
         "src/content/overlay.js",
-        "src/content/overlay.css"
+        "src/content/overlay.css",
+        "src/history/history.html",
+        "src/settings/settings.html"
       ],
       "matches": [
         "https://meet.google.com/*",

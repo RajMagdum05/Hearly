@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hearly Transcript History</title>
+  <link rel="stylesheet" href="history.css" />
+</head>
+<body>
+  <main class="history-shell">
+    <header class="history-header">
+      <button class="icon-button" id="close-btn" type="button" aria-label="Close history">←</button>
+      <div>
+        <h1>Hearly — Transcript History</h1>
+        <p>Nearby voices and filtered speech captured privately on this device.</p>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <label class="search-field">
+        <span>Search transcripts</span>
+        <input id="search-input" type="search" placeholder="Search by keyword..." autocomplete="off" />
+      </label>
+    </section>
+
+    <section class="bulk-bar" id="bulk-bar" hidden>
+      <span id="selected-count">0 selected</span>
+      <div class="bulk-actions">
+        <button class="secondary-button" id="export-selected-btn" type="button">Export as .txt</button>
+        <button class="danger-button" id="delete-selected-btn" type="button">Delete Selected</button>
+      </div>
+    </section>
+
+    <section class="history-list" id="history-list" aria-live="polite"></section>
+  </main>
+
+  <script src="history.js"></script>
+</body>
+</html>

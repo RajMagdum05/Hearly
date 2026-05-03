@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hearly Settings</title>
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body>
+  <main class="settings-shell">
+    <section class="wizard-card">
+      <header class="wizard-header">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect x="2" y="10" width="4" height="12" rx="2" fill="currentColor"></rect>
+            <rect x="9" y="5" width="4" height="22" rx="2" fill="currentColor"></rect>
+            <rect x="16" y="2" width="4" height="28" rx="2" fill="currentColor"></rect>
+            <rect x="23" y="7" width="4" height="18" rx="2" fill="currentColor"></rect>
+          </svg>
+          <div>
+            <div class="brand-title">Hearly</div>
+            <div class="brand-subtitle">Private voice filtering setup</div>
+          </div>
+        </div>
+
+        <div class="progress-dots" aria-label="Setup progress">
+          <span class="active"></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </header>
+
+      <div class="steps">
+        <section class="step active" data-step="0">
+          <div class="step-kicker">Step 1 of 4</div>
+          <h1>Deepgram API Key</h1>
+          <p>Hearly uses Deepgram to transcribe nearby voices privately.</p>
+
+          <label class="field">
+            <span>API Key</span>
+            <input id="api-key" type="password" placeholder="dg_xxxxxxxxxxxx" autocomplete="off" />
+          </label>
+
+          <div class="validation-row">
+            <button class="secondary-button" id="test-key-btn" type="button">Test Key</button>
+            <span class="key-status" id="key-status" aria-live="polite"></span>
+          </div>
+
+          <a class="external-link" href="https://console.deepgram.com" target="_blank" rel="noreferrer">
+            Get free API key →
+          </a>
+        </section>
+
+        <section class="step" data-step="1">
+          <div class="step-kicker">Step 2 of 4</div>
+          <h1>Transcription Language</h1>
+          <p>Choose the language Hearly should ask Deepgram to listen for.</p>
+
+          <label class="field">
+            <span>Language</span>
+            <select id="language">
+              <option value="en-US">English (en-US)</option>
+              <option value="hi">Hindi (hi)</option>
+              <option value="es">Spanish (es)</option>
+              <option value="fr">French (fr)</option>
+              <option value="de">German (de)</option>
+              <option value="ja">Japanese (ja)</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="step" data-step="2">
+          <div class="step-kicker">Step 3 of 4</div>
+          <h1>Notifications</h1>
+          <p>Keep Hearly quiet, or let it nudge you when filtering starts.</p>
+
+          <label class="toggle-row">
+            <span>Show desktop notification when a nearby voice is detected</span>
+            <input id="notify-on-voice" type="checkbox" />
+            <span class="switch" aria-hidden="true"></span>
+          </label>
+
+          <label class="toggle-row">
+            <span>Play a soft chime when filtering starts</span>
+            <input id="chime-on-filter" type="checkbox" />
+            <span class="switch" aria-hidden="true"></span>
+          </label>
+        </section>
+
+        <section class="step done-step" data-step="3">
+          <div class="done-check">✓</div>
+          <h1>You're all set!</h1>
+          <p>Hearly is ready to protect your next meeting.</p>
+
+          <div class="summary-card">
+            <div>
+              <span>API Key</span>
+              <strong id="summary-key">Not saved</strong>
+            </div>
+            <div>
+              <span>Language</span>
+              <strong id="summary-language">English (en-US)</strong>
+            </div>
+            <div>
+              <span>Notifications</span>
+              <strong id="summary-notifications">Desktop on, chime off</strong>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="wizard-actions">
+        <button class="secondary-button" id="back-btn" type="button">Back</button>
+        <button class="primary-button" id="next-btn" type="button" disabled>Next</button>
+        <button class="primary-button" id="open-hearly-btn" type="button" hidden>Open Hearly</button>
+      </footer>
+    </section>
+  </main>
+
+  <script src="settings.js"></script>
+</body>
+</html>

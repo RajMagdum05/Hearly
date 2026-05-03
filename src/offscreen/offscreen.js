@@ -1,151 +1,132 @@
-// ─────────────────────────────────────────────
-//  Hearly — Offscreen Audio Processor
-//  Handles tabCapture streams and Deepgram WS
-// ─────────────────────────────────────────────
-
 let mediaRecorder = null;
+let micStream = null;
 let socket = null;
-let audioContext = null;
-let sourceNode = null;
-let processorNode = null;
-let capturedStream = null;
+let recordingStartedAt = 0;
 
-chrome.runtime.onMessage.addListener(async (message) => {
+chrome.runtime.onMessage.addListener((message) => {
   if (message.target !== "offscreen") return;
 
-  if (message.type === "START_TAB_RECORDING") {
-    startCapture(message.data.streamId, message.data.apiKey);
-  } else if (message.type === "STOP_TAB_RECORDING") {
-    stopCapture();
+  if (message.type === "START_TRANSCRIPTION" || message.type === "START_TAB_RECORDING") {
+    startTranscription().catch((err) => {
+      sendDeepgramError(err.message || "Could not start transcription");
+    });
+  }
+
+  if (message.type === "STOP_TRANSCRIPTION" || message.type === "STOP_TAB_RECORDING") {
+    stopTranscription();
   }
 });
 
-async function startCapture(streamId, apiKey) {
-  if (socket || mediaRecorder || audioContext) {
-    console.warn("[Hearly-Offscreen] Capture already in progress, stopping old session.");
-    stopCapture();
-  }
+async function startTranscription() {
+  stopTranscription();
+
+  const settings = await chrome.storage.sync.get(["deepgramApiKey", "language"]);
+  const apiKey = settings.deepgramApiKey || "";
+  const language = settings.language || "en-US";
 
   if (!apiKey) {
-    console.info("[Hearly-Offscreen] Cloud meeting transcription skipped because no API key is configured.");
-    return;
+    throw new Error("Deepgram API key is missing. Open Hearly settings to add one.");
   }
 
-  try {
-    capturedStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        mandatory: {
-          chromeMediaSource: "tab",
-          chromeMediaSourceId: streamId,
-        },
-      },
-    });
+  const params = new URLSearchParams({
+    model: "nova-2",
+    language,
+    punctuate: "true",
+    interim_results: "true",
+    token: apiKey,
+  });
 
-    audioContext = new AudioContext({ sampleRate: 16000 });
-    sourceNode = audioContext.createMediaStreamSource(capturedStream);
-    sourceNode.connect(audioContext.destination);
+  socket = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`);
 
-    socket = new WebSocket(
-      "wss://api.deepgram.com/v1/listen?model=nova-2&encoding=linear16&sample_rate=16000&channels=1&diarize=true&smart_format=true&interim_results=true",
-      ["token", apiKey]
-    );
+  socket.onopen = async () => {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const options = getMediaRecorderOptions();
+      mediaRecorder = new MediaRecorder(micStream, options);
+      recordingStartedAt = Date.now();
 
-    socket.onopen = () => {
-      console.log("[Hearly-Offscreen] Deepgram WebSocket opened");
-      startStreaming();
-    };
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      const transcript = data.channel?.alternatives?.[0]?.transcript?.trim();
-      if (!transcript) return;
-
-      chrome.runtime.sendMessage({
-        type: "MEETING_TRANSCRIPT",
-        text: transcript,
-        isFinal: Boolean(data.is_final),
-        speaker: data.channel?.alternatives?.[0]?.words?.[0]?.speaker ?? 0,
+      mediaRecorder.addEventListener("dataavailable", (event) => {
+        if (event.data?.size && socket?.readyState === WebSocket.OPEN) {
+          socket.send(event.data);
+        }
       });
-    };
 
-    socket.onerror = (error) => {
-      console.error("[Hearly-Offscreen] Deepgram WebSocket error:", error);
-    };
+      mediaRecorder.addEventListener("stop", () => {
+        micStream?.getTracks().forEach((track) => track.stop());
+        micStream = null;
+      });
 
-    socket.onclose = () => {
-      console.log("[Hearly-Offscreen] Deepgram WebSocket closed");
-    };
-  } catch (err) {
-    console.error("[Hearly-Offscreen] Failed to start capture:", err);
-    stopCapture();
-  }
-}
-
-function startStreaming() {
-  if (!audioContext || !sourceNode) return;
-
-  processorNode = audioContext.createScriptProcessor(4096, 1, 1);
-  sourceNode.connect(processorNode);
-  processorNode.connect(audioContext.destination);
-
-  processorNode.onaudioprocess = (event) => {
-    if (!socket || socket.readyState !== WebSocket.OPEN) return;
-    const inputData = event.inputBuffer.getChannelData(0);
-    socket.send(floatTo16BitPCM(inputData));
+      mediaRecorder.start(250);
+      console.log("[Hearly-Offscreen] Deepgram transcription started.");
+    } catch (err) {
+      sendDeepgramError(err.message || "Microphone capture failed");
+      stopTranscription();
+    }
   };
 
-  mediaRecorder = {
-    stop: () => {
-      try {
-        sourceNode?.disconnect(processorNode);
-      } catch {}
-      try {
-        processorNode?.disconnect();
-      } catch {}
-      processorNode = null;
-    },
+  socket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      const text = data?.channel?.alternatives?.[0]?.transcript || "";
+      const isFinal = Boolean(data?.is_final);
+
+      if (text.trim()) {
+        chrome.runtime.sendMessage({
+          type: "TRANSCRIPT",
+          text,
+          isFinal,
+          duration: isFinal ? Math.max(1, Math.round((Date.now() - recordingStartedAt) / 1000)) : 0,
+        });
+      }
+    } catch (err) {
+      sendDeepgramError(err.message || "Could not parse Deepgram response");
+    }
+  };
+
+  socket.onerror = () => {
+    sendDeepgramError("Deepgram WebSocket error");
+  };
+
+  socket.onclose = (event) => {
+    if (!event.wasClean && event.code !== 1000) {
+      sendDeepgramError(event.reason || `Deepgram WebSocket closed with code ${event.code}`);
+    }
   };
 }
 
-function stopCapture() {
-  if (mediaRecorder) {
+function stopTranscription() {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
     mediaRecorder.stop();
-    mediaRecorder = null;
+  }
+
+  mediaRecorder = null;
+
+  if (micStream) {
+    micStream.getTracks().forEach((track) => track.stop());
+    micStream = null;
   }
 
   if (socket) {
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: "CloseStream" }));
     }
-    socket.close();
+    socket.close(1000, "Hearly stopped");
     socket = null;
   }
-
-  if (sourceNode) {
-    try {
-      sourceNode.disconnect();
-    } catch {}
-    sourceNode = null;
-  }
-
-  if (capturedStream) {
-    capturedStream.getTracks().forEach((track) => track.stop());
-    capturedStream = null;
-  }
-
-  if (audioContext) {
-    audioContext.close().catch(() => {});
-    audioContext = null;
-  }
-
-  console.log("[Hearly-Offscreen] Capture stopped");
 }
 
-function floatTo16BitPCM(input) {
-  const output = new Int16Array(input.length);
-  for (let i = 0; i < input.length; i++) {
-    const sample = Math.max(-1, Math.min(1, input[i]));
-    output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-  }
-  return output.buffer;
+function getMediaRecorderOptions() {
+  const mimeType = "audio/webm;codecs=opus";
+  if (MediaRecorder.isTypeSupported(mimeType)) return { mimeType };
+  return {};
 }
+
+function sendDeepgramError(reason) {
+  chrome.runtime.sendMessage({
+    type: "DEEPGRAM_ERROR",
+    reason,
+  });
+}
+
+globalThis.startTranscription = startTranscription;
+globalThis.stopTranscription = stopTranscription;

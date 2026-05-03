@@ -118,6 +118,10 @@ class HearlyVoiceProcessor extends AudioWorkletProcessor {
   }
 
   computeSimilarity(audioChunk) {
+    if (Array.isArray(this.voiceProfile)) {
+      return this.computeSimpleSimilarity(audioChunk);
+    }
+
     if (!this.voiceProfile?.mfccMeans) return 0;
 
     // Accumulate samples into ring buffer
@@ -159,6 +163,13 @@ class HearlyVoiceProcessor extends AudioWorkletProcessor {
     const distance = Math.sqrt(distanceSum / len);
     this._lastSim = Math.max(0, 1 - (distance / 4.0));
     return this._lastSim;
+  }
+
+  computeSimpleSimilarity(audioChunk) {
+    const targetEnergy = Number(this.voiceProfile?.[0] || 0);
+    const energy = this.getRMS(audioChunk);
+    const energyScore = 1 - Math.min(1, Math.abs(energy - targetEnergy) / Math.max(targetEnergy, 0.01));
+    return Math.max(0, energyScore);
   }
 
   extractMFCC(audioData) {
